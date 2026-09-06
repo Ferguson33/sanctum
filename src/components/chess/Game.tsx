@@ -43,6 +43,7 @@ import {
 import { isNetMsg, parseTable, tableQuery, type NetMsg, type TableWire } from "@/lib/chess/net";
 import { usePrefs } from "@/lib/chess/prefs";
 import { playMoveSound, unlockAudio, armAudioUnlock } from "@/lib/chess/sound";
+import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +114,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [settings, setSettings] = useState(false);
   const [turn, setTurn] = useState<Side>("w");
   const [solo, setSolo] = useState(false);
+  const [linked, setLinked] = useState(false);
+  const didSync = useRef(false);
 
   const p2p = useRoomBus({
     room: room ?? "local",
@@ -122,7 +125,10 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   });
 
   const connectedPeer = p2p.peers.find((p) => p.connectionState === "connected");
-  const waiting = mode === "online" && !connectedPeer && !solo;
+  useEffect(() => {
+    if (connectedPeer) setLinked(true);
+  }, [connectedPeer]);
+  const waiting = mode === "online" && !linked && !solo;
   const myColor: Side | "both" = mode === "local" || solo ? "both" : host ? "w" : "b";
 
   useEffect(() => {
@@ -137,7 +143,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }, [p2p.onMessage, mode]);
 
   useEffect(() => {
-    if (mode !== "online" || !host || !connectedPeer) return;
+    if (mode !== "online" || !host || !connectedPeer || didSync.current) return;
+    didSync.current = true;
     const msg: NetMsg = {
       t: "sync",
       fen: chessRef.current.fen(),
@@ -146,7 +153,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       wFaction: table.w,
       bFaction: table.b,
     };
-    p2p.send(msg, connectedPeer.id);
+    p2p.send(msg);
   }, [connectedPeer?.id, host, mode]); // eslint-disable-line
 
   useEffect(() => {
@@ -161,12 +168,13 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
 
   useEffect(() => {
     if (mode !== "online" || !host || !room) return;
-    void fetch("/api/rtc", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ op: "table", room, w: table.w, b: table.b, board: table.board }),
+    void publishMailbox(room, selfId ?? "host", {
+      t: "table",
+      w: table.w,
+      b: table.b,
+      board: table.board,
     }).catch(() => {});
-  }, [mode, host, room, table.w, table.b, table.board]);
+  }, [mode, host, room, selfId, table.w, table.b, table.board]);
 
   useEffect(() => armAudioUnlock(), []);
 
@@ -224,6 +232,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   function handleNet(msg: NetMsg) {
     const chess = chessRef.current;
     if (msg.t === "sync") {
+      if (plyOfFen(msg.fen) < plyOfFen(chess.fen())) return;
       chess.load(msg.fen);
       setPieces(piecesFromFen(msg.fen));
       setFen(msg.fen);
@@ -231,12 +240,25 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       setHistory([]);
       setLastMove(null);
       setEnding(endingOf(chess));
+      setPhase("idle");
       applyTheme(msg.setId, msg.boardId, msg.wFaction, msg.bFaction);
       return;
     }
     if (msg.t === "move") {
       if (chess.fen() === msg.fen) return;
+      if (plyOfFen(msg.fen) < plyOfFen(chess.fen())) return;
+      const before = chess.fen();
       commitMove(msg.from as Square, msg.to as Square, msg.promotion, true);
+      if (chess.fen() === before && msg.fen !== before) {
+        try {
+          chess.load(msg.fen);
+          setPieces(piecesFromFen(msg.fen));
+          snapshot(chess, null);
+          setLastMove({ from: msg.from as Square, to: msg.to as Square });
+        } catch {
+          // ignore a broken fen
+        }
+      }
       return;
     }
     if (msg.t === "resign") {
@@ -415,10 +437,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 py-1 text-xs text-muted">
           <span className="font-medium tracking-[0.2em] text-fg">{room}</span>
           <span>
-            {connectedPeer
-              ? connectedPeer.rttMs != null
-                ? `${connectedPeer.rttMs} ms`
-                : "linked"
+            {connectedPeer || linked
+              ? "linked"
               : p2p.joined
                 ? "searching"
                 : "connecting"}
