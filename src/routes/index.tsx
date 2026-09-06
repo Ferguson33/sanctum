@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Smartphone, Users } from "lucide-react";
+import { ArrowRight, Swords, Smartphone, Users } from "lucide-react";
 import { ArmyPick, ArmyRoster } from "@/components/chess/ArmyPick";
 import { Button } from "@/components/ui/button";
 import { BOARD_THEMES, getFaction } from "@/lib/chess/catalog";
 import { hostKey, makeRoomCode } from "@/lib/chess/net";
+import { AI_LEVELS, warmOpponent, type AiLevelId } from "@/lib/chess/opponent";
 import { usePrefs } from "@/lib/chess/prefs";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,12 @@ function Home() {
   const b = getFaction(prefs.bFaction);
   const heroSrc = `/sets/${w.dir}/${w.file}-k.${w.ext}`;
   const [code, setCode] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
+
+  function playAi(lvl: AiLevelId) {
+    warmOpponent();
+    void nav({ to: "/play", search: { vs: "ai", lvl } });
+  }
 
   function challenge() {
     const room = makeRoomCode();
@@ -51,13 +58,39 @@ function Home() {
           You sit as {w.name}
         </p>
         <p className="mt-3 max-w-md text-pretty text-sm text-muted sm:mt-4 sm:text-base">
-          Pick your army and inspect every rank. Challenge a phone — they choose theirs. Or sit both thrones here.
+          Pick your army and inspect every rank. Challenge a phone — they choose theirs. Or sit the table against a host of four strengths.
         </p>
 
         <div className="mt-4 flex max-w-md flex-col gap-2 sm:mt-6 sm:gap-3">
           <Button size="lg" className="w-full" onClick={() => nav({ to: "/play" })}>
             <Users className="size-4" /> Pass and play
           </Button>
+          <Button
+            size="lg"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setAiOpen((v) => !v);
+              warmOpponent();
+            }}
+          >
+            <Swords className="size-4" /> Play the table
+          </Button>
+          {aiOpen && (
+            <div className="grid grid-cols-2 gap-2">
+              {AI_LEVELS.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => playAi(l.id)}
+                  className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
+                >
+                  <span className="font-display block text-lg leading-none">{l.name}</span>
+                  <span className="mt-1 block text-xs text-muted">{l.blurb}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <Button size="lg" variant="ghost" className="w-full" onClick={challenge}>
             <Smartphone className="size-4" /> Challenge a phone
           </Button>

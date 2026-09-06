@@ -47,6 +47,7 @@ import { isNetMsg, parseTable, tableQuery, type NetMsg, type TableWire } from "@
 import { usePrefs } from "@/lib/chess/prefs";
 import { playMoveSound, unlockAudio, armAudioUnlock } from "@/lib/chess/sound";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
+import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
 import { cn } from "@/lib/utils";
 
@@ -58,11 +59,12 @@ type Handoff = "idle" | "ready" | "sending" | "theirs";
 type Callout = { kind: "turn" | "check" | "moved" | "sat"; title: string; body: string } | null;
 
 interface GameProps {
-  mode: "local" | "online";
+  mode: "local" | "online" | "ai";
   room?: string;
   host?: boolean;
   selfId?: string;
   invite?: TableWire | null;
+  aiLevel?: AiLevelId;
 }
 
 export function Game(props: GameProps) {
@@ -92,7 +94,7 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
   }
 }
 
-function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
+function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight" }: GameProps) {
   const prefs = usePrefs();
   const [table, setTable] = useState<TableWire>(() => {
     if (invite?.w) return { w: invite.w, b: invite.b, board: invite.board };
@@ -124,8 +126,9 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
   const [callout, setCallout] = useState<Callout>(null);
-  const [parade, setParade] = useState(mode === "local");
-  const didParade = useRef(mode === "local");
+  const [parade, setParade] = useState(mode === "local" || mode === "ai");
+  const didParade = useRef(mode === "local" || mode === "ai");
+  const [thinking, setThinking] = useState(false);
   const didSync = useRef(false);
   const handoffRef = useRef<Handoff>("idle");
   const calloutTimer = useRef(0);
@@ -143,7 +146,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   useEffect(() => {
     if (connectedPeer) setLinked(true);
   }, [connectedPeer]);
-  const myColor: Side | "both" = mode === "local" ? "both" : host ? "w" : "b";
+  const myColor: Side | "both" = mode === "local" ? "both" : mode === "ai" || host ? "w" : "b";
   const mySide: Side = myColor === "b" ? "b" : "w";
   const myFaction = mySide === "b" ? bFaction : wFaction;
   const theirFaction = mySide === "b" ? wFaction : bFaction;
@@ -183,6 +186,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
 
   useEffect(() => {
     if (mode === "online") setOrientation(host ? "w" : "b");
+    if (mode === "ai") setOrientation("w");
   }, [mode, host]);
 
   useEffect(() => {
@@ -260,13 +264,13 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
 
   const canMove = useCallback(
     (color: Side) => {
-      if (phase === "over" || phase === "animating" || phase === "promotion") return false;
+      if (phase === "over" || phase === "animating" || phase === "promotion" || thinking) return false;
       if (mode === "online" && !seated) return false;
       if (handoff === "ready" || handoff === "sending") return false;
       if (myColor === "both") return true;
       return myColor === color && turn === color;
     },
-    [phase, myColor, turn, handoff, mode, seated],
+    [phase, myColor, turn, handoff, mode, seated, thinking],
   );
 
   function flash(next: NonNullable<Callout>, ms = 2800) {
@@ -276,7 +280,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }
 
   useEffect(() => {
-    if (mode !== "online" || ending || handoff !== "idle" || parade || !seated) return;
+    if ((mode !== "online" && mode !== "ai") || ending || handoff !== "idle" || parade) return;
+    if (mode === "online" && !seated) return;
     if (myColor !== "both" && turn !== myColor) return;
     const checked = chessRef.current.isCheck();
     const them = myColor === "b" ? wFaction : bFaction;
@@ -340,6 +345,9 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         if (chess.isCheck() && !chess.isCheckmate()) {
           flash({ kind: "check", title: "Check", body: "The other king is under fire." }, 2600);
         }
+      }
+      if (!remote && mode === "ai" && !chess.isGameOver() && chess.turn() === "b") {
+        void playAi();
       }
     }, 240);
   }
@@ -485,6 +493,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
 
   function reset(nextFen = START, remote = false) {
     incomingPly.current = false;
+    setThinking(false);
     const chess = new Chess(nextFen);
     chessRef.current = chess;
     setFen(chess.fen());
@@ -505,13 +514,19 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
 
   function undo() {
     if (mode === "online" && handoff !== "ready") return;
-    if (mode !== "local" && mode !== "online") return;
     const chess = chessRef.current;
-    const undone = chess.undo();
-    if (!undone) return;
+    if (mode === "ai") {
+      setThinking(false);
+      chess.undo();
+      if (chess.turn() === "b") chess.undo();
+    } else {
+      if (mode !== "local" && mode !== "online") return;
+      const undone = chess.undo();
+      if (!undone) return;
+    }
     setPieces(piecesFromFen(chess.fen()));
     snapshot(chess, null);
-    setHistory((h) => h.slice(0, -1));
+    setHistory((h) => (mode === "ai" ? h.slice(0, -2) : h.slice(0, -1)));
     setLastMove(null);
     setHandoff("idle");
     if (mode === "local" && prefs.autoFlip) setOrientation(chess.turn());
@@ -521,6 +536,21 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     if (mode !== "online") return;
     if (handoff !== "ready" && handoff !== "sending") return;
     setHandoff("sending");
+  }
+
+  function playAi() {
+    const chess = chessRef.current;
+    if (chess.turn() !== "b" || chess.isGameOver()) return;
+    setThinking(true);
+    flash({ kind: "sat", title: "They think", body: `${bFaction.name} considers the ply.` }, 1600);
+    void think(chess.fen(), aiLevel)
+      .then((mv) => {
+        if (chessRef.current.turn() !== "b" || chessRef.current.isGameOver()) return;
+        incomingPly.current = true;
+        commitMove(mv.from, mv.to, mv.promotion, true);
+      })
+      .catch(() => {})
+      .finally(() => setThinking(false));
   }
 
   function sitBlack() {
@@ -574,7 +604,9 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg leading-none sm:text-xl">{title}</p>
           <p className="truncate text-xs text-muted">
-            {ending
+            {thinking
+              ? `${bFaction.name} considers`
+              : ending
               ? endLabel(ending, wFaction.name, bFaction.name)
               : handoff === "ready"
                 ? "End turn to send this ply"
@@ -649,6 +681,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
           board={board}
           tilt={prefs.tilt}
           disabled={
+            thinking ||
             phase === "over" ||
             handoff === "ready" ||
             handoff === "sending" ||
@@ -661,19 +694,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       <Captured row={orientation === "w" ? heavenCaps : hellCaps} faction={orientation === "w" ? wFaction : bFaction} />
 
       <footer className="relative z-10 flex shrink-0 items-center gap-2 bg-gradient-to-t from-bg via-bg/80 to-transparent px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1">
-        {mode === "local" ? (
-          <>
-            <Button variant="subtle" size="sm" onClick={undo} disabled={history.length === 0}>
-              <Undo2 className="size-4" /> Undo
-            </Button>
-            <Button variant="subtle" size="sm" onClick={() => setOrientation((o) => (o === "w" ? "b" : "w"))}>
-              Flip
-            </Button>
-            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => reset()}>
-              <RotateCcw className="size-4" /> New
-            </Button>
-          </>
-        ) : (
+        {mode === "online" ? (
           <>
             {handoff === "ready" || handoff === "sending" ? (
               <>
@@ -712,6 +733,30 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
                 </Button>
               </>
             )}
+          </>
+        ) : mode === "ai" ? (
+          <>
+            <p className="min-w-0 flex-1 truncate text-sm text-muted">
+              {thinking ? `${bFaction.name} considers…` : `${wFaction.name} vs ${getAiLevel(aiLevel).name}`}
+            </p>
+            <Button variant="subtle" size="sm" onClick={undo} disabled={history.length === 0 || thinking}>
+              <Undo2 className="size-4" /> Undo
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => reset()}>
+              <RotateCcw className="size-4" /> New
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="subtle" size="sm" onClick={undo} disabled={history.length === 0}>
+              <Undo2 className="size-4" /> Undo
+            </Button>
+            <Button variant="subtle" size="sm" onClick={() => setOrientation((o) => (o === "w" ? "b" : "w"))}>
+              Flip
+            </Button>
+            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => reset()}>
+              <RotateCcw className="size-4" /> New
+            </Button>
           </>
         )}
       </footer>
