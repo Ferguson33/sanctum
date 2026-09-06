@@ -53,7 +53,7 @@ const PROMOTE: PieceType[] = ["q", "r", "b", "n"];
 
 type Phase = "idle" | "selected" | "promotion" | "animating" | "over";
 type Handoff = "idle" | "ready" | "sending" | "theirs";
-type Callout = { kind: "turn" | "check"; title: string; body: string } | null;
+type Callout = { kind: "turn" | "check" | "moved" | "sat"; title: string; body: string } | null;
 
 interface GameProps {
   mode: "local" | "online";
@@ -122,6 +122,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const didSync = useRef(false);
   const handoffRef = useRef<Handoff>("idle");
   const calloutTimer = useRef(0);
+  const incomingPly = useRef(false);
   handoffRef.current = handoff;
 
   const p2p = useRoomBus({
@@ -185,6 +186,32 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   useEffect(() => armAudioUnlock(), []);
 
   useEffect(() => {
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } };
+    let lock: { release: () => Promise<void> } | null = null;
+    const arm = async () => {
+      try {
+        lock = (await nav.wakeLock?.request("screen")) ?? null;
+      } catch {
+        // unsupported or denied
+      }
+    };
+    void arm();
+    const onVis = () => {
+      if (document.visibilityState === "visible") void arm();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      void lock?.release();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "online" || !linked) return;
+    flash({ kind: "sat", title: "They sat", body: "The other throne is at the table." }, 2200);
+  }, [linked, mode]); // eslint-disable-line
+
+  useEffect(() => {
     if (mode !== "online" || handoff !== "sending") return;
     const push = () => {
       const chess = chessRef.current;
@@ -226,13 +253,20 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     if (mode !== "online" || ending || handoff !== "idle") return;
     if (myColor !== "both" && turn !== myColor) return;
     const checked = chessRef.current.isCheck();
+    const them = myColor === "b" ? wFaction : bFaction;
+    const mine = myColor === "b" ? bFaction : wFaction;
+    if (incomingPly.current) {
+      incomingPly.current = false;
+      if (checked) {
+        flash({ kind: "check", title: "Check", body: `${them.name} struck.` }, 3200);
+      } else {
+        flash({ kind: "moved", title: "They moved", body: `${them.name} sent the ply. Your turn.` });
+      }
+      return;
+    }
     if (checked) {
-      flash(
-        { kind: "check", title: "Check", body: "Your king is under fire." },
-        3200,
-      );
+      flash({ kind: "check", title: "Check", body: "Your king is under fire." }, 3200);
     } else {
-      const mine = myColor === "b" ? bFaction : wFaction;
       flash({ kind: "turn", title: "Your turn", body: `${mine.name} to move.` });
     }
   }, [turn, mode, myColor, handoff, ending]); // eslint-disable-line
@@ -323,7 +357,9 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       return;
     }
     if (msg.t === "reset") {
+      incomingPly.current = false;
       reset(msg.fen, true);
+      flash({ kind: "turn", title: "Rematch", body: "A new table." }, 2200);
       return;
     }
     if (msg.t === "have") {
@@ -348,6 +384,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       } catch {
         return;
       }
+      incomingPly.current = true;
       setPieces(piecesFromFen(msg.fen));
       setFen(msg.fen);
       setTurn(chess.turn());
@@ -421,6 +458,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }
 
   function reset(nextFen = START, remote = false) {
+    incomingPly.current = false;
     const chess = new Chess(nextFen);
     chessRef.current = chess;
     setFen(chess.fen());
@@ -672,7 +710,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
                 callout.kind === "check" ? "text-ember" : "text-gold",
               )}
             >
-              {callout.kind === "check" ? "The king" : "The table"}
+              {callout.kind === "check" ? "The king" : callout.kind === "moved" ? "Across the table" : "The table"}
             </p>
             <p
               className={cn(
@@ -694,7 +732,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
             <p className="mt-2 text-sm text-muted">{endLabel(ending, wFaction.name, bFaction.name)}</p>
             <div className="mt-5 flex gap-2">
               <Button className="flex-1" onClick={() => reset()}>
-                Play again
+                {mode === "online" ? "Rematch" : "Play again"}
               </Button>
               <Link to="/" className="flex-1">
                 <Button variant="ghost" className="w-full">
