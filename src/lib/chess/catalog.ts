@@ -164,6 +164,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...PAGEANT_SCALE,
+    intro: "/sets/bakufu/intro.mp4",
   },
   {
     id: "aliens",
