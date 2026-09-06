@@ -10,7 +10,7 @@ export type Envelope = {
 export type PeerRow = { id: string; name: string };
 
 const NTFY = "https://ntfy.sh";
-export const PEER_TTL_MS = 45_000;
+export const PEER_TTL_MS = 5 * 60_000;
 
 export function mailboxTopic(room: string) {
   return `sanctum-chess-${room.toLowerCase()}`;
@@ -83,15 +83,19 @@ export async function publishMailbox(room: string, from: string, payload: unknow
 export function peersFrom(envs: Envelope[], self: string, now = Date.now()): PeerRow[] {
   const latest = new Map<string, { name: string; at: number }>();
   for (const env of envs) {
+    if (env.from === self) continue;
     const p = env.payload;
-    if (!p || typeof p !== "object" || (p as { t?: string }).t !== "hello") continue;
-    const name = typeof (p as { name?: string }).name === "string" ? (p as { name: string }).name : env.from;
-    latest.set(env.from, { name, at: env.at || now });
+    const named =
+      p && typeof p === "object" && typeof (p as { name?: string }).name === "string"
+        ? (p as { name: string }).name
+        : env.from;
+    const at = env.at && env.at > 1_000_000_000_000 ? env.at : now;
+    const prev = latest.get(env.from);
+    if (!prev || at >= prev.at) latest.set(env.from, { name: named, at });
   }
   return [...latest.entries()]
     .filter(([, v]) => now - v.at < PEER_TTL_MS)
     .map(([id, v]) => ({ id, name: v.name }))
-    .filter((p) => p.id !== self)
     .slice(0, 8);
 }
 

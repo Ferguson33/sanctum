@@ -355,7 +355,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   function onSquare(sq: Square) {
     unlockAudio();
     const chess = chessRef.current;
-    if (phase === "over" || phase === "animating" || waiting) return;
+    if (phase === "over" || phase === "animating") return;
     if (!canMove(chess.turn())) return;
 
     if (phase === "selected" && selected) {
@@ -518,6 +518,24 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         </div>
       )}
 
+      {waiting && (
+        <div className="relative z-20 mx-auto w-full max-w-sm shrink-0 px-3 pb-2">
+          <div className="panel rounded-[20px] px-4 py-3 text-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-muted">Waiting for the other throne</p>
+            <p className="font-display mt-0.5 text-2xl tracking-[0.28em]">{room}</p>
+            <p className="mt-1 text-xs text-muted">Share this link — they sit the same armies.</p>
+            <div className="mt-2 flex gap-2">
+              <Button className="flex-1" size="sm" onClick={shareRoom}>
+                Share
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSolo(true)}>
+                Sit anyway
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Captured row={orientation === "w" ? hellCaps : heavenCaps} faction={orientation === "w" ? bFaction : wFaction} />
 
       <div className="relative z-10 min-h-0 flex-1 px-1">
@@ -535,7 +553,6 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
           board={board}
           tilt={prefs.tilt}
           disabled={
-            waiting ||
             phase === "over" ||
             handoff === "ready" ||
             handoff === "sending" ||
@@ -596,28 +613,6 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
           </>
         )}
       </footer>
-
-      {waiting && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[5.5rem] z-20 mx-auto max-w-sm px-4">
-          <div className="panel pointer-events-auto rounded-[24px] p-4 text-center">
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">Waiting for the other throne</p>
-            <p className="font-display mt-1 text-3xl tracking-[0.28em]">{room}</p>
-            <p className="mt-2 text-sm text-muted text-pretty">
-              {title} is set. Share this link — they sit the same armies.
-            </p>
-            <Button className="mt-3 w-full" onClick={shareRoom}>
-              Share link
-            </Button>
-            <button
-              type="button"
-              className="mt-2 text-xs text-muted underline-offset-2 hover:underline"
-              onClick={() => setSolo(true)}
-            >
-              Sit this screen anyway
-            </button>
-          </div>
-        </div>
-      )}
 
       {phase === "promotion" && pending && (
         <div className="absolute inset-0 z-30 flex items-end justify-center bg-bg/60 p-4 pb-24">

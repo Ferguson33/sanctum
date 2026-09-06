@@ -33,7 +33,9 @@ export function useRoomBus(options: Options): P2PRoomHandle {
   const [table, setTable] = useState<{ w: string; b: string; board: string } | null>(null);
   const seenIds = useRef(new Set<string>());
   const seenKeys = useRef(new Set<string>());
+  const knownPeers = useRef(new Map<string, PeerInfo>());
   const closed = useRef(false);
+  const linkedRef = useRef(false);
   const listeners = useRef(
     new Set<(from: string, data: unknown, channel: "state" | "reliable") => void>(),
   );
@@ -54,15 +56,17 @@ export function useRoomBus(options: Options): P2PRoomHandle {
         setJoined(true);
         const roster = peersFrom(envs, selfId);
         if (roster.length) {
-          setPeers(
-            roster.map((p) => ({
+          linkedRef.current = true;
+          for (const p of roster) {
+            knownPeers.current.set(p.id, {
               id: p.id,
               name: p.name,
-              connectionState: "connected" as const,
+              connectionState: "connected",
               candidateType: "relay",
               rttMs: null,
-            })),
-          );
+            });
+          }
+          setPeers([...knownPeers.current.values()]);
         }
         const nextTable = tableFrom(envs);
         if (nextTable) setTable(nextTable);
@@ -82,7 +86,7 @@ export function useRoomBus(options: Options): P2PRoomHandle {
       } catch {
         // next tick retries
       }
-      if (!closed.current) timer = setTimeout(() => void poll(), 1200);
+      if (!closed.current) timer = setTimeout(() => void poll(), linkedRef.current ? 1400 : 700);
     };
 
     const hello = async () => {
@@ -92,11 +96,17 @@ export function useRoomBus(options: Options): P2PRoomHandle {
 
     void hello();
     void poll();
-    const beat = setInterval(() => void hello(), 20_000);
+    const beat = setInterval(() => {
+      if (!linkedRef.current) void hello();
+    }, 3000);
+    const slow = setInterval(() => {
+      if (linkedRef.current) void hello();
+    }, 15_000);
     return () => {
       closed.current = true;
       if (timer) clearTimeout(timer);
       clearInterval(beat);
+      clearInterval(slow);
     };
   }, [enabled, room, selfId, name]);
 
