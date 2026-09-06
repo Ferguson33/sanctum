@@ -25,8 +25,27 @@ const tableSchema = z.object({
   board: z.string().max(32),
 });
 const postSchema = z.discriminatedUnion("op", [pubSchema, leaveSchema, tableSchema]);
+const PEER_TTL_MS = 5 * 60_000;
 
-const PEER_TTL_MS = 18_000;
+function peersFrom(envs: Envelope[], self: string): PeerRow[] {
+  const latest = new Map<string, { name: string; at: number }>();
+  const now = Date.now();
+  for (const env of envs) {
+    if (env.from === self || env.from === "table") continue;
+    const p = env.payload;
+    const name =
+      p && typeof p === "object" && typeof (p as { name?: string }).name === "string"
+        ? (p as { name: string }).name
+        : env.from;
+    const at = env.at && env.at > 1_000_000_000_000 ? env.at : now;
+    const prev = latest.get(env.from);
+    if (!prev || at >= prev.at) latest.set(env.from, { name, at });
+  }
+  return [...latest.entries()]
+    .filter(([, v]) => now - v.at < PEER_TTL_MS)
+    .map(([id, v]) => ({ id, name: v.name }))
+    .slice(0, 8);
+}
 const NTFY = "https://ntfy.sh";
 
 type Envelope = {
@@ -111,22 +130,6 @@ async function readRemote(room: string): Promise<Envelope[]> {
     }
   }
   return out;
-}
-
-function peersFrom(envs: Envelope[], self: string): PeerRow[] {
-  const latest = new Map<string, { name: string; at: number }>();
-  const now = Date.now();
-  for (const env of envs) {
-    const p = env.payload;
-    if (!p || typeof p !== "object" || (p as { t?: string }).t !== "hello") continue;
-    const name = typeof (p as { name?: string }).name === "string" ? (p as { name: string }).name : env.from;
-    latest.set(env.from, { name, at: env.at });
-  }
-  return [...latest.entries()]
-    .filter(([, v]) => now - v.at < PEER_TTL_MS)
-    .map(([id, v]) => ({ id, name: v.name }))
-    .filter((p) => p.id !== self)
-    .slice(0, 8);
 }
 
 function tableFrom(envs: Envelope[]): TableWire | undefined {

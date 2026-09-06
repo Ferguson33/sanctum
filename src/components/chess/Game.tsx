@@ -115,7 +115,6 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [ending, setEnding] = useState<Ending>(null);
   const [settings, setSettings] = useState(false);
   const [turn, setTurn] = useState<Side>("w");
-  const [solo, setSolo] = useState(false);
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
   const didSync = useRef(false);
@@ -133,8 +132,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   useEffect(() => {
     if (connectedPeer) setLinked(true);
   }, [connectedPeer]);
-  const waiting = mode === "online" && !linked && !solo;
-  const myColor: Side | "both" = mode === "local" || solo ? "both" : host ? "w" : "b";
+  const myColor: Side | "both" = mode === "local" ? "both" : host ? "w" : "b";
 
   useEffect(() => {
     if (mode === "local") return;
@@ -458,22 +456,20 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg leading-none sm:text-xl">{title}</p>
           <p className="truncate text-xs text-muted">
-            {waiting
-              ? "Waiting for the other throne"
-              : ending
-                ? endLabel(ending, wFaction.name, bFaction.name)
-                : handoff === "ready"
-                  ? "End turn to send this ply"
-                  : handoff === "sending"
-                    ? "Handing the board across"
-                    : handoff === "theirs"
-                      ? `${sideToMove.name} has the board`
-                      : (
-                          <>
-                            <span className={turn === "w" ? "text-gold" : "text-ember"}>{sideToMove.name}</span>
-                            {" to move"}
-                          </>
-                        )}
+            {ending
+              ? endLabel(ending, wFaction.name, bFaction.name)
+              : handoff === "ready"
+                ? "End turn to send this ply"
+                : handoff === "sending"
+                  ? "Handing the board across"
+                  : handoff === "theirs"
+                    ? `${sideToMove.name} has the board`
+                    : (
+                        <>
+                          <span className={turn === "w" ? "text-gold" : "text-ember"}>{sideToMove.name}</span>
+                          {" to move"}
+                        </>
+                      )}
             {chessRef.current.isCheck() && phase !== "over" ? (
               <span className="text-ember"> · check</span>
             ) : (
@@ -515,24 +511,6 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
           <button type="button" className="inline-flex items-center gap-1 text-ivory" onClick={shareRoom}>
             <Share2 className="size-3.5" /> Share
           </button>
-        </div>
-      )}
-
-      {waiting && (
-        <div className="relative z-20 mx-auto w-full max-w-sm shrink-0 px-3 pb-2">
-          <div className="panel rounded-[20px] px-4 py-3 text-center">
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">Waiting for the other throne</p>
-            <p className="font-display mt-0.5 text-2xl tracking-[0.28em]">{room}</p>
-            <p className="mt-1 text-xs text-muted">Share this link — they sit the same armies.</p>
-            <div className="mt-2 flex gap-2">
-              <Button className="flex-1" size="sm" onClick={shareRoom}>
-                Share
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSolo(true)}>
-                Sit anyway
-              </Button>
-            </div>
-          </div>
         </div>
       )}
 

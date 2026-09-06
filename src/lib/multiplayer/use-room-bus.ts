@@ -5,11 +5,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   payloadKey,
-  peersFrom,
   publishMailbox,
   readMailbox,
   sendWithRetry,
-  tableFrom,
 } from "./mailbox";
 import type { PeerInfo } from "./p2p";
 import type { P2PRoomHandle } from "./use-p2p-room";
@@ -52,9 +50,8 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     const poll = async () => {
       if (closed.current) return;
       try {
-        const envs = await readMailbox(room);
+        const { envs, peers: roster, table: nextTable } = await readMailbox(room, selfId, name);
         setJoined(true);
-        const roster = peersFrom(envs, selfId);
         if (roster.length) {
           linkedRef.current = true;
           for (const p of roster) {
@@ -68,7 +65,6 @@ export function useRoomBus(options: Options): P2PRoomHandle {
           }
           setPeers([...knownPeers.current.values()]);
         }
-        const nextTable = tableFrom(envs);
         if (nextTable) setTable(nextTable);
         for (const msg of envs) {
           if (seenIds.current.has(msg.id)) continue;

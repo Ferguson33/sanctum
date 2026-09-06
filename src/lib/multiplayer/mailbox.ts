@@ -63,19 +63,40 @@ export function parseMailboxBody(text: string): Envelope[] {
   return out;
 }
 
-export async function readMailbox(room: string): Promise<Envelope[]> {
-  const res = await fetch(`${NTFY}/${mailboxTopic(room)}/json?poll=1`, {
-    headers: { accept: "application/x-ndjson, application/json" },
-  });
+export async function readMailbox(
+  room: string,
+  peer = "poller",
+  name = "",
+): Promise<{
+  envs: Envelope[];
+  peers: PeerRow[];
+  table?: TableWire;
+}> {
+  const params = new URLSearchParams({ room, peer, name, since: "0" });
+  const res = await fetch(`/api/rtc?${params}`);
   if (!res.ok) throw new Error(`mailbox poll ${res.status}`);
-  return parseMailboxBody(await res.text());
+  const body = (await res.json()) as {
+    messages?: { id: string; from: string; payload: unknown }[];
+    peers?: PeerRow[];
+    table?: TableWire;
+  };
+  return {
+    envs: (body.messages ?? []).map((m) => ({
+      id: m.id,
+      from: m.from,
+      payload: m.payload,
+      at: Date.now(),
+    })),
+    peers: body.peers ?? [],
+    table: body.table,
+  };
 }
 
 export async function publishMailbox(room: string, from: string, payload: unknown): Promise<void> {
-  const res = await fetch(`${NTFY}/${mailboxTopic(room)}`, {
+  const res = await fetch("/api/rtc", {
     method: "POST",
-    headers: { "content-type": "text/plain", Title: "sanctum" },
-    body: JSON.stringify({ from, payload }),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ op: "pub", room, from, payload }),
   });
   if (!res.ok) throw new Error(`mailbox publish ${res.status}`);
 }
