@@ -362,9 +362,9 @@
 }
 
 .parade-truck {
-  width: min(168vw, 1280px);
+  width: min(180vw, 1400px);
   transform-style: preserve-3d;
-  animation: paradeTruck 4.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: paradeTruck 5.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .parade-dais {
@@ -395,12 +395,12 @@
 
 .parade-host {
   position: absolute;
-  inset: auto 0 -8%;
-  height: 128%;
+  inset: auto 0 -14%;
+  height: 148%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  transform: translateZ(6px) rotateX(-34deg);
+  transform: translateZ(12px) rotateX(-34deg);
   transform-origin: center bottom;
   pointer-events: none;
   z-index: 2;
@@ -449,11 +449,124 @@
 
 @keyframes paradeTruck {
   0% {
-    transform: translateX(16%) scale(1.42);
+    transform: translateX(24%) translateZ(120px) rotateY(-10deg) scale(1.62);
   }
   100% {
-    transform: translateX(-7%) scale(1.08);
+    transform: translateX(-10%) translateZ(0) rotateY(8deg) scale(1.12);
   }
+}
+
+.parade-letterbox {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  height: 7vh;
+  background: var(--color-bg);
+  pointer-events: none;
+}
+
+.parade-letterbox-top {
+  top: 0;
+}
+
+.parade-letterbox-bot {
+  bottom: 0;
+}
+
+.parade-clash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4vw;
+  padding-bottom: 22vh;
+  animation: paradeClash 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.parade-clash-k {
+  height: min(52vh, 420px);
+  width: auto;
+  object-fit: contain;
+  object-position: bottom;
+  filter: drop-shadow(0 24px 32px rgba(0, 0, 0, 0.7));
+}
+
+@keyframes paradeClash {
+  0% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.hero-line {
+  perspective: 1600px;
+  perspective-origin: 50% 80%;
+  height: min(48vh, 440px);
+  display: grid;
+  place-items: end center;
+  padding: 0 0.5rem;
+}
+
+.hero-dais {
+  display: flex;
+  width: min(96vw, 760px);
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.25rem;
+  transform: rotateX(16deg);
+  transform-origin: center bottom;
+}
+
+.hero-figure {
+  display: flex;
+  height: 88%;
+  flex: 1;
+  max-width: 26%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.hero-figure:nth-child(2),
+.hero-figure:nth-child(3) {
+  height: 100%;
+  max-width: 30%;
+}
+
+.hero-statue {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: bottom;
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.7));
+}
+
+.hero-figure figcaption {
+  margin-top: 0.35rem;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.hero-fig-name {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.hero-fig-rank {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-muted);
 }
 
 .hero-wash {

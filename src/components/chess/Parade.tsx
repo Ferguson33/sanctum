@@ -24,20 +24,22 @@ interface ParadeProps {
 }
 
 export function Parade({ first, second, firstSide, secondSide, board, onDone }: ParadeProps) {
-  const [shot, setShot] = useState<0 | 1>(0);
+  const [shot, setShot] = useState<0 | 1 | 2>(0);
   const faction = shot === 0 ? first : second;
   const side = shot === 0 ? firstSide : secondSide;
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
-      const t = window.setTimeout(onDone, 1600);
+      const t = window.setTimeout(onDone, 1400);
       return () => window.clearTimeout(t);
     }
-    const cut = window.setTimeout(() => setShot(1), 4200);
-    const done = window.setTimeout(onDone, 8600);
+    const them = window.setTimeout(() => setShot(1), 5200);
+    const clash = window.setTimeout(() => setShot(2), 10400);
+    const done = window.setTimeout(onDone, 12800);
     return () => {
-      window.clearTimeout(cut);
+      window.clearTimeout(them);
+      window.clearTimeout(clash);
       window.clearTimeout(done);
     };
   }, [onDone]);
@@ -45,15 +47,72 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
   return (
     <div className="parade-root">
       <div aria-hidden className="arena-wash parade-wash" />
-      <RankFlyby key={faction.id} faction={faction} side={side} board={board} />
+      <div aria-hidden className="parade-letterbox parade-letterbox-top" />
+      <div aria-hidden className="parade-letterbox parade-letterbox-bot" />
+      {shot < 2 ? (
+        <RankFlyby key={`${faction.id}-${shot}`} faction={faction} side={side} board={board} />
+      ) : (
+        <Clash first={first} second={second} firstSide={firstSide} secondSide={secondSide} />
+      )}
       <div className="parade-copy">
-        <p className="text-xs uppercase tracking-[0.28em] text-gold">{shot === 0 ? "Your host" : "The other throne"}</p>
-        <p className="font-display mt-1 text-5xl leading-none sm:text-6xl">{faction.name}</p>
-        <p className="mt-1 text-sm text-muted">{faction.epithet}</p>
+        {shot < 2 ? (
+          <>
+            <p className="text-xs uppercase tracking-[0.28em] text-gold">{shot === 0 ? "Your host" : "The other throne"}</p>
+            <p className="font-display mt-1 text-5xl leading-none sm:text-6xl">{faction.name}</p>
+            <p className="mt-1 text-sm text-muted">{faction.epithet}</p>
+          </>
+        ) : (
+          <>
+            <p className="text-xs uppercase tracking-[0.28em] text-gold">The table is set</p>
+            <p className="font-display mt-1 text-4xl leading-none sm:text-5xl">
+              {first.name} <span className="text-gold">vs</span> {second.name}
+            </p>
+          </>
+        )}
       </div>
       <button type="button" className="parade-skip" onClick={onDone}>
         Skip
       </button>
+    </div>
+  );
+}
+
+function Clash({
+  first,
+  second,
+  firstSide,
+  secondSide,
+}: {
+  first: Faction;
+  second: Faction;
+  firstSide: Side;
+  secondSide: Side;
+}) {
+  return (
+    <div className="parade-clash">
+      <img
+        src={factionSrc(first, "k")}
+        alt={first.name}
+        className="parade-clash-k"
+        onError={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.fallback) return;
+          el.dataset.fallback = "1";
+          el.src = `/sets/sigil/${firstSide}-k.svg?v=3`;
+        }}
+      />
+      <span className="font-display text-3xl text-gold sm:text-5xl">vs</span>
+      <img
+        src={factionSrc(second, "k")}
+        alt={second.name}
+        className="parade-clash-k"
+        onError={(e) => {
+          const el = e.currentTarget;
+          if (el.dataset.fallback) return;
+          el.dataset.fallback = "1";
+          el.src = `/sets/sigil/${secondSide}-k.svg?v=3`;
+        }}
+      />
     </div>
   );
 }
@@ -197,7 +256,7 @@ function Host({
           glyph ? "piece-glyph h-[92%] w-auto" : "piece-statue h-[108%] w-auto",
           side === "w" ? "is-white" : "is-black",
         )}
-        style={{ width: `${width}%`, maxWidth: "none", maxHeight: glyph ? "96%" : "118%" }}
+        style={{ width: `${width}%`, maxWidth: "none", maxHeight: glyph ? "96%" : "132%" }}
       />
     </div>
   );

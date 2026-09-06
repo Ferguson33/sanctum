@@ -53,6 +53,6 @@ export const usePrefs = create<Prefs>()(
       setSound: (sound) => set({ sound }),
       setAutoFlip: (autoFlip) => set({ autoFlip }),
     }),
-    { name: "sanctum-prefs-v3" },
+    { name: "sanctum-prefs-v4" },
   ),
 );

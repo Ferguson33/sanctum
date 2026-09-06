@@ -201,10 +201,18 @@ export const BOARD_THEMES: BoardTheme[] = [
   },
 ];
 
-export const DEFAULT_SET_ID = "sigil";
-export const DEFAULT_W_FACTION = "canon-ivory";
-export const DEFAULT_B_FACTION = "canon-ember";
+export const DEFAULT_SET_ID = "grove";
+export const DEFAULT_W_FACTION = "elves";
+export const DEFAULT_B_FACTION = "dwarves";
 export const DEFAULT_BOARD_ID = "reliquary";
+
+/** Poster statues — one signature from each sculpted host. */
+export const HERO_LINEUP: { faction: string; type: PieceType }[] = [
+  { faction: "good", type: "k" },
+  { faction: "elves", type: "n" },
+  { faction: "dwarves", type: "k" },
+  { faction: "evil", type: "k" },
+];
 
 export function knownFactionId(id: string | null | undefined): string | undefined {
   return FACTIONS.some((f) => f.id === id) ? id! : undefined;
