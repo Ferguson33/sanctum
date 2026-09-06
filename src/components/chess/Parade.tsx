@@ -25,24 +25,33 @@ interface ParadeProps {
 
 export function Parade({ first, second, firstSide, secondSide, board, onDone }: ParadeProps) {
   const [shot, setShot] = useState<0 | 1 | 2>(0);
+  const [reelBroken, setReelBroken] = useState(false);
   const faction = shot === 0 ? first : second;
   const side = shot === 0 ? firstSide : secondSide;
+  const reel = shot < 2 && Boolean(faction.intro) && !reelBroken;
+
+  useEffect(() => {
+    setReelBroken(false);
+  }, [shot]);
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
-      const t = window.setTimeout(onDone, 1400);
+      const t = window.setTimeout(onDone, 800);
       return () => window.clearTimeout(t);
     }
-    const them = window.setTimeout(() => setShot(1), 5200);
-    const clash = window.setTimeout(() => setShot(2), 10400);
-    const done = window.setTimeout(onDone, 12800);
-    return () => {
-      window.clearTimeout(them);
-      window.clearTimeout(clash);
-      window.clearTimeout(done);
-    };
-  }, [onDone]);
+    if (shot === 2) {
+      const t = window.setTimeout(onDone, 2400);
+      return () => window.clearTimeout(t);
+    }
+    const ms = reel ? 9000 : 5200;
+    const t = window.setTimeout(() => setShot((s) => (s === 0 ? 1 : 2)), ms);
+    return () => window.clearTimeout(t);
+  }, [shot, reel, onDone]);
+
+  function nextShot() {
+    setShot((s) => (s === 0 ? 1 : 2));
+  }
 
   return (
     <div className="parade-root">
@@ -50,7 +59,16 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
       <div aria-hidden className="parade-letterbox parade-letterbox-top" />
       <div aria-hidden className="parade-letterbox parade-letterbox-bot" />
       {shot < 2 ? (
-        <RankFlyby key={`${faction.id}-${shot}`} faction={faction} side={side} board={board} />
+        reel && faction.intro ? (
+          <HostReel
+            src={faction.intro}
+            poster={faction.intro.replace(/\.mp4$/, ".jpg")}
+            onEnded={nextShot}
+            onBroken={() => setReelBroken(true)}
+          />
+        ) : (
+          <RankFlyby key={`${faction.id}-${shot}`} faction={faction} side={side} board={board} />
+        )
       ) : (
         <Clash first={first} second={second} firstSide={firstSide} secondSide={secondSide} />
       )}
@@ -74,6 +92,32 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
         Skip
       </button>
     </div>
+  );
+}
+
+function HostReel({
+  src,
+  poster,
+  onEnded,
+  onBroken,
+}: {
+  src: string;
+  poster?: string;
+  onEnded: () => void;
+  onBroken: () => void;
+}) {
+  return (
+    <video
+      className="parade-reel"
+      src={src}
+      poster={poster}
+      autoPlay
+      muted
+      playsInline
+      preload="auto"
+      onEnded={onEnded}
+      onError={onBroken}
+    />
   );
 }
 

@@ -34,6 +34,8 @@ export interface Faction {
   scale: { width: number; height: number };
   typeScale?: Partial<Record<PieceType, number>>;
   fit: "glyph" | "statue";
+  /** Optional cinematic intro (mp4). Poster is the same path with .jpg */
+  intro?: string;
 }
 
 export interface PieceSet {
@@ -151,6 +153,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...PAGEANT_SCALE,
+    intro: "/sets/atlantis/intro.mp4",
   },
   {
     id: "samurai",

@@ -352,6 +352,16 @@
   opacity: 0.85;
 }
 
+.parade-reel {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
 .parade-scene {
   position: absolute;
   inset: 0;
