@@ -99,7 +99,7 @@ export const FACTIONS: Faction[] = [
   {
     id: "elves",
     name: "Elves",
-    epithet: "the Grove",
+    epithet: "the Nightgrove",
     family: "Grove",
     dir: "grove",
     ext: "webp",
