@@ -59,20 +59,26 @@ export interface BoardTheme {
 
 const SANCTUM_SCALE = {
   scale: { width: 0.84, height: 1.02 },
-  typeScale: { r: 1.0, n: 1.04, q: 1.0, k: 1.06, b: 0.96, p: 0.78 } as Partial<Record<PieceType, number>>,
+  typeScale: { r: 1.0, n: 1.04, q: 1.0, k: 1.06, b: 0.96, p: 0.62 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
 const GROVE_SCALE = {
   scale: { width: 0.86, height: 1.04 },
-  typeScale: { r: 1.08, n: 1.18, q: 1.02, k: 0.96, b: 1.0, p: 0.74 } as Partial<Record<PieceType, number>>,
+  typeScale: { r: 1.08, n: 1.18, q: 1.02, k: 0.96, b: 1.0, p: 0.58 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
 const CANON_SCALE = {
   scale: { width: 0.9, height: 0.9 },
-  typeScale: { p: 0.82, n: 1.02, b: 0.98, r: 0.96, q: 1.0, k: 1.04 } as Partial<Record<PieceType, number>>,
+  typeScale: { p: 0.68, n: 1.02, b: 0.98, r: 0.96, q: 1.0, k: 1.04 } as Partial<Record<PieceType, number>>,
   fit: "glyph" as const,
+};
+
+const PAGEANT_SCALE = {
+  scale: { width: 0.88, height: 1.06 },
+  typeScale: { r: 1.14, n: 1.22, q: 1.06, k: 1.12, b: 1.0, p: 0.54 } as Partial<Record<PieceType, number>>,
+  fit: "statue" as const,
 };
 
 export const FACTIONS: Faction[] = [
@@ -136,6 +142,36 @@ export const FACTIONS: Faction[] = [
     file: "b",
     ...CANON_SCALE,
   },
+  {
+    id: "atlantis",
+    name: "Atlantis",
+    epithet: "the Drowned Court",
+    family: "Tide",
+    dir: "atlantis",
+    ext: "webp",
+    file: "w",
+    ...PAGEANT_SCALE,
+  },
+  {
+    id: "samurai",
+    name: "Samurai",
+    epithet: "the Bakufu",
+    family: "East",
+    dir: "bakufu",
+    ext: "webp",
+    file: "w",
+    ...PAGEANT_SCALE,
+  },
+  {
+    id: "aliens",
+    name: "Aliens",
+    epithet: "the Far Choir",
+    family: "Void",
+    dir: "drift",
+    ext: "webp",
+    file: "w",
+    ...PAGEANT_SCALE,
+  },
 ];
 
 export const PIECE_SETS: PieceSet[] = [
@@ -159,6 +195,20 @@ export const PIECE_SETS: PieceSet[] = [
     tagline: "Elves against Dwarves",
     w: "elves",
     b: "dwarves",
+  },
+  {
+    id: "tide",
+    name: "Tide",
+    tagline: "Atlantis against the Bakufu",
+    w: "atlantis",
+    b: "samurai",
+  },
+  {
+    id: "void",
+    name: "Void",
+    tagline: "The Far Choir against Ruin",
+    w: "aliens",
+    b: "evil",
   },
 ];
 
@@ -198,6 +248,42 @@ export const BOARD_THEMES: BoardTheme[] = [
     frame: "#9a9187",
     table: "#101014",
     inlay: "#5c5854",
+  },
+  {
+    id: "abyss",
+    name: "Abyss",
+    tagline: "Ice over the drowned city",
+    light: "/boards/abyss/light.jpg",
+    dark: "/boards/abyss/dark.jpg",
+    lightFill: "#b7d4d9",
+    darkFill: "#0c3a42",
+    frame: "#5ec8d6",
+    table: "#061418",
+    inlay: "#1a6a72",
+  },
+  {
+    id: "lacquer",
+    name: "Lacquer",
+    tagline: "Gold dust on black",
+    light: "/boards/lacquer/light.jpg",
+    dark: "/boards/lacquer/dark.jpg",
+    lightFill: "#e8d5b0",
+    darkFill: "#16110c",
+    frame: "#c4a056",
+    table: "#0c0a08",
+    inlay: "#7a5a28",
+  },
+  {
+    id: "nebula",
+    name: "Nebula",
+    tagline: "Stone that isn't stone",
+    light: "/boards/nebula/light.jpg",
+    dark: "/boards/nebula/dark.jpg",
+    lightFill: "#d5cce4",
+    darkFill: "#1a1028",
+    frame: "#8a6cff",
+    table: "#0a0614",
+    inlay: "#3a2060",
   },
 ];
 
