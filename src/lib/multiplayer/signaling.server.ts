@@ -1,20 +1,18 @@
 /**
- * WebRTC signaling over the app database (Neon deployed, PGLite in preview).
- * Only rendezvous traffic passes through here — roster + SDP/ICE relay while a
- * mesh forms; game data then flows peer-to-peer.
+ * Turn-based room mailbox. Production has no Postgres, so we never touch
+ * PGLite there — phones meet on a shared HTTP topic (ntfy), with an in-process
+ * log as the preview fallback.
  */
 import { z } from "zod";
-import { getSql, type Sql } from "@/lib/db";
-import type { PeerRow, RtcPollResponse, SignalRow } from "./p2p";
+import { parseTable, type TableWire } from "@/lib/chess/net";
+import type { PeerRow } from "./p2p";
 
 const ID = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
-const signalSchema = z.object({
-  op: z.literal("signal"),
+const pubSchema = z.object({
+  op: z.literal("pub"),
   room: ID,
   from: ID,
-  to: ID,
-  kind: z.enum(["offer", "answer", "ice"]),
-  payload: z.unknown().refine((v) => v !== undefined && JSON.stringify(v).length <= 32_768, {
+  payload: z.unknown().refine((v) => v !== undefined && JSON.stringify(v).length <= 8_192, {
     message: "payload too large",
   }),
 });
@@ -26,89 +24,32 @@ const tableSchema = z.object({
   b: z.string().max(32),
   board: z.string().max(32),
 });
-const postSchema = z.discriminatedUnion("op", [signalSchema, leaveSchema, tableSchema]);
+const postSchema = z.discriminatedUnion("op", [pubSchema, leaveSchema, tableSchema]);
 
-const PEER_TTL_SECONDS = 30;
-const SIGNAL_TTL_SECONDS = 60;
+const PEER_TTL_MS = 18_000;
+const NTFY = "https://ntfy.sh";
 
-const globalRef = globalThis as typeof globalThis & {
-  __rtcSchemaPromiseV2__?: Promise<void>;
+type Envelope = {
+  id: string;
+  from: string;
+  payload: unknown;
+  at: number;
 };
 
-function ensureSchema(sql: Sql): Promise<void> {
-  globalRef.__rtcSchemaPromiseV2__ ??= (async () => {
-    await sql.query(
-      `CREATE TABLE IF NOT EXISTS webrtc_peers (
-         room TEXT NOT NULL,
-         peer_id TEXT NOT NULL,
-         name TEXT NOT NULL DEFAULT '',
-         last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
-         PRIMARY KEY (room, peer_id)
-       )`,
-    );
-    await sql.query(
-      `CREATE TABLE IF NOT EXISTS webrtc_signals (
-         id BIGSERIAL PRIMARY KEY,
-         room TEXT NOT NULL,
-         to_peer TEXT NOT NULL,
-         from_peer TEXT NOT NULL,
-         kind TEXT NOT NULL,
-         payload JSONB NOT NULL,
-         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-       )`,
-    );
-    await sql.query(
-      `CREATE INDEX IF NOT EXISTS webrtc_signals_inbox
-         ON webrtc_signals (room, to_peer, id)`,
-    );
-    await sql.query(
-      `CREATE TABLE IF NOT EXISTS webrtc_tables (
-         room TEXT PRIMARY KEY,
-         w TEXT NOT NULL,
-         b TEXT NOT NULL,
-         board TEXT NOT NULL,
-         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-       )`,
-    );
-  })().catch((err) => {
-    globalRef.__rtcSchemaPromiseV2__ = undefined;
-    throw err;
-  });
-  return globalRef.__rtcSchemaPromise__;
+type Store = {
+  seq: number;
+  rooms: Map<string, Envelope[]>;
+};
+
+const globalRef = globalThis as typeof globalThis & { __sanctumBus__?: Store };
+
+function store(): Store {
+  globalRef.__sanctumBus__ ??= { seq: 1, rooms: new Map() };
+  return globalRef.__sanctumBus__;
 }
 
-async function roster(sql: Sql, room: string): Promise<PeerRow[]> {
-  const rows = await sql.query<{ peer_id: string; name: string }>(
-    `SELECT peer_id, name FROM webrtc_peers
-     WHERE room = $1 AND last_seen > now() - make_interval(secs => $2)
-     ORDER BY peer_id LIMIT 32`,
-    [room, PEER_TTL_SECONDS],
-  );
-  return rows.map((r) => ({ id: r.peer_id, name: r.name }));
-}
-
-async function touchPeer(sql: Sql, room: string, peer: string, name: string) {
-  await sql.query(
-    `INSERT INTO webrtc_peers (room, peer_id, name, last_seen)
-     VALUES ($1, $2, $3, now())
-     ON CONFLICT (room, peer_id)
-     DO UPDATE SET last_seen = now(), name = EXCLUDED.name`,
-    [room, peer, name],
-  );
-}
-
-async function prune(sql: Sql) {
-  await Promise.all([
-    sql.query(`DELETE FROM webrtc_signals WHERE created_at < now() - make_interval(secs => $1)`, [
-      SIGNAL_TTL_SECONDS,
-    ]),
-    sql.query(`DELETE FROM webrtc_peers WHERE last_seen < now() - make_interval(secs => $1)`, [
-      PEER_TTL_SECONDS,
-    ]),
-    sql.query(`DELETE FROM webrtc_tables WHERE updated_at < now() - make_interval(secs => $1)`, [
-      6 * 3600,
-    ]),
-  ]);
+function topic(room: string) {
+  return `sanctum-chess-${room.toLowerCase()}`;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -118,53 +59,145 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function appendLocal(room: string, from: string, payload: unknown): Envelope {
+  const s = store();
+  const env: Envelope = { id: `m${s.seq++}`, from, payload, at: Date.now() };
+  const list = s.rooms.get(room) ?? [];
+  list.push(env);
+  s.rooms.set(room, list.slice(-80));
+  return env;
+}
+
+async function publishRemote(room: string, from: string, payload: unknown) {
+  const body = JSON.stringify({ from, payload });
+  const res = await fetch(`${NTFY}/${topic(room)}`, {
+    method: "POST",
+    headers: { "content-type": "text/plain", Title: "sanctum" },
+    body,
+  });
+  if (!res.ok) throw new Error(`mailbox publish ${res.status}`);
+}
+
+type NtfyMsg = { id?: string; time?: number; event?: string; message?: string };
+
+async function readRemote(room: string): Promise<Envelope[]> {
+  const res = await fetch(`${NTFY}/${topic(room)}/json?poll=1`, {
+    headers: { accept: "application/x-ndjson, application/json" },
+  });
+  if (!res.ok) throw new Error(`mailbox poll ${res.status}`);
+  const text = await res.text();
+  const out: Envelope[] = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    let row: NtfyMsg;
+    try {
+      row = JSON.parse(line) as NtfyMsg;
+    } catch {
+      continue;
+    }
+    if (row.event && row.event !== "message") continue;
+    if (!row.message) continue;
+    try {
+      const inner = JSON.parse(row.message) as { from?: string; payload?: unknown };
+      if (!inner.from) continue;
+      out.push({
+        id: String(row.id ?? `t${row.time}`),
+        from: String(inner.from).slice(0, 64),
+        payload: inner.payload,
+        at: (row.time ?? 0) * 1000,
+      });
+    } catch {
+      continue;
+    }
+  }
+  return out;
+}
+
+function peersFrom(envs: Envelope[], self: string): PeerRow[] {
+  const latest = new Map<string, { name: string; at: number }>();
+  const now = Date.now();
+  for (const env of envs) {
+    const p = env.payload;
+    if (!p || typeof p !== "object" || (p as { t?: string }).t !== "hello") continue;
+    const name = typeof (p as { name?: string }).name === "string" ? (p as { name: string }).name : env.from;
+    latest.set(env.from, { name, at: env.at });
+  }
+  return [...latest.entries()]
+    .filter(([, v]) => now - v.at < PEER_TTL_MS)
+    .map(([id, v]) => ({ id, name: v.name }))
+    .filter((p) => p.id !== self)
+    .slice(0, 8);
+}
+
+function tableFrom(envs: Envelope[]): TableWire | undefined {
+  for (let i = envs.length - 1; i >= 0; i--) {
+    const p = envs[i].payload;
+    if (!p || typeof p !== "object") continue;
+    const t = p as { t?: string; w?: string; b?: string; board?: string; table?: TableWire };
+    if (t.t === "table") {
+      const parsed = parseTable(t);
+      if (parsed) return parsed;
+    }
+    if (t.t === "hello" && t.w && t.b && t.board) {
+      const parsed = parseTable(t);
+      if (parsed) return parsed;
+    }
+    if (t.t === "sync") {
+      const parsed = parseTable({
+        w: (t as { wFaction?: string }).wFaction,
+        b: (t as { bFaction?: string }).bFaction,
+        board: (t as { boardId?: string }).boardId,
+      });
+      if (parsed) return parsed;
+    }
+  }
+  return undefined;
+}
+
+async function loadRoom(room: string): Promise<Envelope[]> {
+  try {
+    const remote = await readRemote(room);
+    if (remote.length) return remote;
+  } catch (err) {
+    console.warn("[rtc] remote mailbox missed, using local log", err);
+  }
+  return store().rooms.get(room) ?? [];
+}
+
 async function handleGet(url: URL): Promise<Response> {
   const parsed = z
     .object({
       room: ID,
       peer: ID,
       name: z.string().max(64).default(""),
-      since: z.coerce.number().int().min(0).default(0),
+      since: z.string().max(64).default("0"),
     })
     .safeParse({
       room: url.searchParams.get("room"),
       peer: url.searchParams.get("peer"),
       name: url.searchParams.get("name") ?? "",
-      since: url.searchParams.get("since") ?? 0,
+      since: url.searchParams.get("since") ?? "0",
     });
   if (!parsed.success) return json({ error: "invalid query" }, 400);
-  const { room, peer, name, since } = parsed.data;
-
-  const sql = await getSql();
-  await ensureSchema(sql);
-  if (since === 0 || Math.random() < 0.02) await prune(sql);
-  await touchPeer(sql, room, peer, name);
-  const rows = await sql.query<{
-    id: number;
-    from_peer: string;
-    kind: SignalRow["kind"];
-    payload: unknown;
-  }>(
-    `SELECT id, from_peer, kind, payload FROM webrtc_signals
-     WHERE room = $1 AND to_peer = $2 AND id > $3
-     ORDER BY id LIMIT 200`,
-    [room, peer, since],
-  );
-  const tableRows = await sql.query<{ w: string; b: string; board: string }>(
-    `SELECT w, b, board FROM webrtc_tables WHERE room = $1 LIMIT 1`,
-    [room],
-  );
-  const body: RtcPollResponse = {
-    peers: await roster(sql, room),
-    signals: rows.map((r) => ({
-      id: r.id,
-      from: r.from_peer,
-      kind: r.kind,
-      payload: r.payload,
-    })),
-    table: tableRows[0],
-  };
-  return json(body);
+  const { room, peer, since } = parsed.data;
+  const envs = await loadRoom(room);
+  const seen = new Set<string>();
+  const messages: Envelope[] = [];
+  let pass = since === "0" || since === "" || !envs.some((e) => e.id === since);
+  for (const env of envs) {
+    if (!pass) {
+      if (env.id === since) pass = true;
+      continue;
+    }
+    if (seen.has(env.id)) continue;
+    seen.add(env.id);
+    messages.push(env);
+  }
+  return json({
+    peers: peersFrom(envs, peer),
+    messages: messages.map((m) => ({ id: m.id, from: m.from, payload: m.payload })),
+    table: tableFrom(envs),
+  });
 }
 
 async function handlePost(request: Request): Promise<Response> {
@@ -177,28 +210,17 @@ async function handlePost(request: Request): Promise<Response> {
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) return json({ error: "invalid request" }, 400);
   const msg = parsed.data;
-  const sql = await getSql();
-  await ensureSchema(sql);
 
-  if (msg.op === "signal") {
-    await sql.query(
-      `INSERT INTO webrtc_signals (room, to_peer, from_peer, kind, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [msg.room, msg.to, msg.from, msg.kind, JSON.stringify(msg.payload)],
-    );
-  } else if (msg.op === "table") {
-    await sql.query(
-      `INSERT INTO webrtc_tables (room, w, b, board, updated_at)
-       VALUES ($1, $2, $3, $4, now())
-       ON CONFLICT (room)
-       DO UPDATE SET w = EXCLUDED.w, b = EXCLUDED.b, board = EXCLUDED.board, updated_at = now()`,
-      [msg.room, msg.w, msg.b, msg.board],
-    );
-  } else {
-    await sql.query(`DELETE FROM webrtc_peers WHERE room = $1 AND peer_id = $2`, [
-      msg.room,
-      msg.peer,
-    ]);
+  if (msg.op === "leave") return json({ ok: true });
+
+  const payload =
+    msg.op === "table" ? { t: "table", w: msg.w, b: msg.b, board: msg.board } : msg.payload;
+  const from = msg.op === "table" ? "table" : msg.from;
+  appendLocal(msg.room, from, payload);
+  try {
+    await publishRemote(msg.room, from, payload);
+  } catch (err) {
+    console.warn("[rtc] remote publish missed", err);
   }
   return json({ ok: true });
 }

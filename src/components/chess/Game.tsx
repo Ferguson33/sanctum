@@ -43,7 +43,7 @@ import {
 import { isNetMsg, parseTable, tableQuery, type NetMsg, type TableWire } from "@/lib/chess/net";
 import { usePrefs } from "@/lib/chess/prefs";
 import { playMoveSound, unlockAudio, armAudioUnlock } from "@/lib/chess/sound";
-import { useP2PRoom } from "@/lib/multiplayer/use-p2p-room";
+import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
 import { cn } from "@/lib/utils";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -112,10 +112,9 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [ending, setEnding] = useState<Ending>(null);
   const [settings, setSettings] = useState(false);
   const [turn, setTurn] = useState<Side>("w");
+  const [solo, setSolo] = useState(false);
 
-  const myColor: Side | "both" = mode === "local" ? "both" : host ? "w" : "b";
-
-  const p2p = useP2PRoom({
+  const p2p = useRoomBus({
     room: room ?? "local",
     name: host ? wFaction.name : bFaction.name,
     selfId,
@@ -123,10 +122,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   });
 
   const connectedPeer = p2p.peers.find((p) => p.connectionState === "connected");
-  const failedPeer = p2p.peers.find(
-    (p) => p.connectionState === "failed" || p.connectionState === "disconnected",
-  );
-  const waiting = mode === "online" && !connectedPeer;
+  const waiting = mode === "online" && !connectedPeer && !solo;
+  const myColor: Side | "both" = mode === "local" || solo ? "both" : host ? "w" : "b";
 
   useEffect(() => {
     if (mode === "local") return;
@@ -491,21 +488,23 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       </footer>
 
       {waiting && (
-        <div className="absolute inset-x-0 top-24 z-20 mx-auto max-w-sm px-4">
-          <div className="panel rounded-[24px] p-5 text-center">
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">Room</p>
-            <p className="font-display mt-1 text-4xl tracking-[0.28em]">{room}</p>
-            <p className="mt-3 text-sm text-muted text-pretty">
-              {title} is set. Open this on the other phone and join with the code, or share the link.
+        <div className="pointer-events-none absolute inset-x-0 bottom-[5.5rem] z-20 mx-auto max-w-sm px-4">
+          <div className="panel pointer-events-auto rounded-[24px] p-4 text-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-muted">Waiting for the other throne</p>
+            <p className="font-display mt-1 text-3xl tracking-[0.28em]">{room}</p>
+            <p className="mt-2 text-sm text-muted text-pretty">
+              {title} is set. Share this link — they sit the same armies.
             </p>
-            {failedPeer && (
-              <p className="mt-2 text-sm text-ember">
-                Link failed. Try the same Wi-Fi, or pass and play on one screen.
-              </p>
-            )}
-            <Button className="mt-4 w-full" onClick={shareRoom}>
+            <Button className="mt-3 w-full" onClick={shareRoom}>
               Share link
             </Button>
+            <button
+              type="button"
+              className="mt-2 text-xs text-muted underline-offset-2 hover:underline"
+              onClick={() => setSolo(true)}
+            >
+              Sit this screen anyway
+            </button>
           </div>
         </div>
       )}
