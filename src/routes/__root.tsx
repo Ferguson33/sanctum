@@ -17,7 +17,7 @@ export const Route = createRootRoute({
       { name: "theme-color", content: "#0B0A0C" },
       {
         name: "description",
-        content: "Cinematic chess. Choose a host — Good, Evil, Elves, Dwarves — and play on one screen or two phones.",
+        content: "Cinematic chess. Choose a host — Solace, Ruin, Elves, Dwarves — and play on one screen or two phones.",
       },
     ],
     links: [

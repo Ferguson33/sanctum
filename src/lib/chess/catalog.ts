@@ -2,7 +2,7 @@
  * Piece catalog — add a host without touching rules or the board.
  *
  * A FACTION is one army (6 sculptures). A PIECE_SET is a suggested pairing
- * (white faction vs black faction). Players can mix freely: Elves vs Evil, etc.
+ * (white faction vs black faction). Players can mix freely: Elves vs Ruin, etc.
  *
  * To add a new paired sculpture set:
  *   1. Drop 6 pair photos (left = white host, right = black host) or 12 cutouts.
@@ -78,7 +78,7 @@ const CANON_SCALE = {
 export const FACTIONS: Faction[] = [
   {
     id: "good",
-    name: "Good",
+    name: "Solace",
     epithet: "the Ivory Host",
     family: "Sanctum",
     dir: "sanctum",
@@ -88,7 +88,7 @@ export const FACTIONS: Faction[] = [
   },
   {
     id: "evil",
-    name: "Evil",
+    name: "Ruin",
     epithet: "the Ember Court",
     family: "Sanctum",
     dir: "sanctum",
@@ -149,7 +149,7 @@ export const PIECE_SETS: PieceSet[] = [
   {
     id: "sanctum",
     name: "Sanctum",
-    tagline: "Good against Evil",
+    tagline: "Solace against Ruin",
     w: "good",
     b: "evil",
   },
