@@ -316,6 +316,12 @@ export function getFaction(id: string | null | undefined): Faction {
   return FACTIONS.find((f) => f.id === id) ?? FACTIONS.find((f) => f.id === DEFAULT_W_FACTION)!;
 }
 
+/** First host that isn't `avoid`. Prefer `wanted` when it's free. */
+export function otherFaction(avoid: string, wanted?: string | null): string {
+  if (wanted && wanted !== avoid && FACTIONS.some((f) => f.id === wanted)) return wanted;
+  return FACTIONS.find((f) => f.id !== avoid)?.id ?? FACTIONS[0].id;
+}
+
 export function getBoard(id: string | null | undefined): BoardTheme {
   return BOARD_THEMES.find((b) => b.id === id) ?? BOARD_THEMES[0];
 }

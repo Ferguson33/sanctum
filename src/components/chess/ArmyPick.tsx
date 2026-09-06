@@ -125,6 +125,7 @@ export function ArmyPick({
   onSit,
   sitLabel,
   note,
+  taken,
 }: {
   kicker: string;
   selected: string;
@@ -132,6 +133,8 @@ export function ArmyPick({
   onSit?: () => void;
   sitLabel?: string;
   note?: string;
+  /** Host already sat — not offered to the other throne. */
+  taken?: string;
 }) {
   const faction = getFaction(selected);
   const [card, setCard] = useState<PieceType | null>(null);
@@ -149,20 +152,25 @@ export function ArmyPick({
         {note ? <p className="mt-1 text-sm text-muted text-pretty">{note}</p> : null}
       </div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {FACTIONS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => onSelect(f.id)}
-            className={cn(
-              "flex flex-col items-center rounded-[20px] border px-1 py-3",
-              selected === f.id ? "border-ivory bg-surface" : "border-border bg-surface/40",
-            )}
-          >
-            {pieceImg(f, "k", "h-12 w-auto sm:h-14 object-contain object-bottom")}
-            <span className="mt-2 text-xs font-medium">{f.name}</span>
-          </button>
-        ))}
+        {FACTIONS.map((f) => {
+          const sat = taken === f.id;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              disabled={sat}
+              onClick={() => onSelect(f.id)}
+              className={cn(
+                "flex flex-col items-center rounded-[20px] border px-1 py-3",
+                sat && "cursor-not-allowed opacity-35",
+                !sat && selected === f.id ? "border-ivory bg-surface" : "border-border bg-surface/40",
+              )}
+            >
+              {pieceImg(f, "k", "h-12 w-auto sm:h-14 object-contain object-bottom")}
+              <span className="mt-2 text-xs font-medium">{sat ? "Sat" : f.name}</span>
+            </button>
+          );
+        })}
       </div>
       <div className="panel rounded-[24px] px-3 py-4 sm:px-4">
         <p className="font-display text-3xl leading-none">{faction.name}</p>

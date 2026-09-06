@@ -26,6 +26,7 @@ import {
   getBoard,
   getFaction,
   getSet,
+  otherFaction,
   tableName,
   type PieceType,
   type Side,
@@ -151,7 +152,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const myFaction = mySide === "b" ? bFaction : wFaction;
   const theirFaction = mySide === "b" ? wFaction : bFaction;
   const skipParade = useCallback(() => setParade(false), []);
-  const [draftBlack, setDraftBlack] = useState(prefs.bFaction);
+  const [draftBlack, setDraftBlack] = useState(() => otherFaction(table.w, prefs.bFaction));
 
   useEffect(() => {
     if (mode !== "online" || !seated || didParade.current) return;
@@ -554,7 +555,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   }
 
   function sitBlack() {
-    const id = draftBlack;
+    const id = otherFaction(table.w, draftBlack);
     setTable((cur) => ({ ...cur, b: id }));
     prefs.setBFaction(id);
     if (room) {
@@ -863,8 +864,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <div className="mx-auto max-w-lg pb-8">
             <ArmyPick
               kicker="Pick your host"
-              note={`${wFaction.name} already sits white. Choose who you sit as black — tap an army to inspect every rank.`}
+              note={`${wFaction.name} already sits white. Choose a different army.`}
               selected={draftBlack}
+              taken={table.w}
               onSelect={setDraftBlack}
               onSit={sitBlack}
               sitLabel={`Sit as ${getFaction(draftBlack).name}`}
@@ -956,17 +958,21 @@ function SettingsSheet({
         <p className="mt-5 text-xs uppercase tracking-[0.18em] text-muted">White plays as</p>
         <FactionRow
           selected={prefs.wFaction}
+          taken={prefs.bFaction}
           onPick={(id) => {
             prefs.setWFaction(id);
-            onTheme(prefs.setId, prefs.boardId, id, prefs.bFaction);
+            const p = usePrefs.getState();
+            onTheme(p.setId, p.boardId, p.wFaction, p.bFaction);
           }}
         />
         <p className="mt-4 text-xs uppercase tracking-[0.18em] text-muted">Black plays as</p>
         <FactionRow
           selected={prefs.bFaction}
+          taken={prefs.wFaction}
           onPick={(id) => {
             prefs.setBFaction(id);
-            onTheme(prefs.setId, prefs.boardId, prefs.wFaction, id);
+            const p = usePrefs.getState();
+            onTheme(p.setId, p.boardId, p.wFaction, p.bFaction);
           }}
         />
 
@@ -1028,23 +1034,36 @@ function SettingsSheet({
   );
 }
 
-function FactionRow({ selected, onPick }: { selected: string; onPick: (id: string) => void }) {
+function FactionRow({
+  selected,
+  taken,
+  onPick,
+}: {
+  selected: string;
+  taken?: string;
+  onPick: (id: string) => void;
+}) {
   return (
     <div className="mt-2 grid grid-cols-3 gap-2">
-      {FACTIONS.map((f) => (
-        <button
-          key={f.id}
-          type="button"
-          onClick={() => onPick(f.id)}
-          className={cn(
-            "flex flex-col items-center rounded-[16px] border px-1 py-2",
-            selected === f.id ? "border-ivory bg-surface-2" : "border-border",
-          )}
-        >
-          <img src={factionSrc(f, "k")} alt="" className="h-12 w-auto" />
-          <span className="mt-1 text-[11px] font-medium leading-none">{f.name}</span>
-        </button>
-      ))}
+      {FACTIONS.map((f) => {
+        const sat = taken === f.id;
+        return (
+          <button
+            key={f.id}
+            type="button"
+            disabled={sat}
+            onClick={() => onPick(f.id)}
+            className={cn(
+              "flex flex-col items-center rounded-[16px] border px-1 py-2",
+              sat && "cursor-not-allowed opacity-35",
+              !sat && selected === f.id ? "border-ivory bg-surface-2" : "border-border",
+            )}
+          >
+            <img src={factionSrc(f, "k")} alt="" className="h-12 w-auto" />
+            <span className="mt-1 text-[11px] font-medium leading-none">{sat ? "Sat" : f.name}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -106,16 +106,18 @@ function Home() {
       <section className="px-5 py-12">
         <ArmyPick
           kicker="Your host"
-          note="Tap an army to inspect king through pawn."
+          note="Tap an army to inspect king through pawn. A host can only sit one throne."
           selected={prefs.wFaction}
+          taken={prefs.bFaction}
           onSelect={(id) => prefs.setWFaction(id)}
         />
 
         <div className="mt-10">
           <ArmyPick
             kicker="The other throne"
-            note="Pass and play and the table sit this host as black. A challenged phone chooses their own."
+            note="Pass and play and the table sit this host as black. A challenged phone chooses their own — never the same army."
             selected={prefs.bFaction}
+            taken={prefs.wFaction}
             onSelect={(id) => prefs.setBFaction(id)}
           />
         </div>

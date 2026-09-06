@@ -6,6 +6,7 @@ import {
   DEFAULT_SET_ID,
   DEFAULT_W_FACTION,
   getSet,
+  otherFaction,
   pairingOf,
 } from "./catalog";
 
@@ -41,10 +42,11 @@ export const usePrefs = create<Prefs>()(
         set({ setId, wFaction: s.w, bFaction: s.b });
       },
       setWFaction: (id) => {
-        const b = get().bFaction;
-        set({ wFaction: id, setId: pairingOf(id, b)?.id ?? get().setId });
+        const b = get().bFaction === id ? otherFaction(id) : get().bFaction;
+        set({ wFaction: id, bFaction: b, setId: pairingOf(id, b)?.id ?? get().setId });
       },
       setBFaction: (id) => {
+        if (id === get().wFaction) return;
         const w = get().wFaction;
         set({ bFaction: id, setId: pairingOf(w, id)?.id ?? get().setId });
       },
@@ -53,6 +55,6 @@ export const usePrefs = create<Prefs>()(
       setSound: (sound) => set({ sound }),
       setAutoFlip: (autoFlip) => set({ autoFlip }),
     }),
-    { name: "sanctum-prefs-v4" },
+    { name: "sanctum-prefs-v5" },
   ),
 );
