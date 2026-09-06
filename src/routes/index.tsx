@@ -46,61 +46,59 @@ function Home() {
     <main className="min-h-dvh bg-bg text-fg">
       <section className="relative flex min-h-dvh flex-col">
         <div aria-hidden className="arena-wash absolute inset-0" />
-        <div className="relative flex min-h-0 flex-1 flex-col justify-end">
+        <header className="relative z-10 bg-gradient-to-b from-bg/80 via-bg/30 to-transparent px-5 pb-2 pt-[max(3.2rem,env(safe-area-inset-top))] text-center">
+          <p className="text-xs uppercase tracking-[0.28em] text-gold">A table of hosts</p>
+          <h1 className="font-display mt-1 text-5xl leading-none sm:text-7xl">Sanctum</h1>
+        </header>
+        <div className="relative min-h-0 flex-1">
           <HeroLineup />
-          <div className="px-5 pb-6 pt-2 sm:pb-10">
-            <p className="text-xs uppercase tracking-[0.28em] text-gold">A table of hosts</p>
-            <h1 className="font-display mt-2 max-w-xl text-5xl leading-[0.9] text-balance sm:text-7xl">Sanctum</h1>
-            <p className="mt-3 max-w-md text-pretty text-sm text-muted sm:text-base">
-              Four thrones. You pick yours — they pick theirs. Pass the screen, send a code, or sit the table.
-            </p>
-
-            <div className="mt-4 flex max-w-md flex-col gap-2 sm:mt-6 sm:gap-3">
-              <Button size="lg" className="w-full" onClick={() => nav({ to: "/play" })}>
-                <Users className="size-4" /> Pass and play
+        </div>
+        <div className="relative z-10 bg-gradient-to-t from-bg via-bg/90 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10">
+          <div className="mx-auto flex max-w-md flex-col gap-2">
+            <Button size="lg" className="w-full" onClick={() => nav({ to: "/play" })}>
+              <Users className="size-4" /> Pass and play
+            </Button>
+            <Button
+              size="lg"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setAiOpen((v) => !v);
+                warmOpponent();
+              }}
+            >
+              <Swords className="size-4" /> Play the table
+            </Button>
+            {aiOpen && (
+              <div className="grid grid-cols-2 gap-2">
+                {AI_LEVELS.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => playAi(l.id)}
+                    className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
+                  >
+                    <span className="font-display block text-lg leading-none">{l.name}</span>
+                    <span className="mt-1 block text-xs text-muted">{l.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <Button size="lg" variant="ghost" className="w-full" onClick={challenge}>
+              <Smartphone className="size-4" /> Challenge a phone
+            </Button>
+            <form onSubmit={join} className="flex gap-2">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="Join with a code"
+                maxLength={8}
+                className="h-12 flex-1 rounded-[14px] border border-border bg-surface px-4 text-sm tracking-[0.2em] outline-none placeholder:tracking-normal placeholder:text-dim focus:border-ivory"
+              />
+              <Button type="submit" variant="subtle" size="lg" aria-label="Join">
+                <ArrowRight className="size-4" />
               </Button>
-              <Button
-                size="lg"
-                variant="ghost"
-                className="w-full"
-                onClick={() => {
-                  setAiOpen((v) => !v);
-                  warmOpponent();
-                }}
-              >
-                <Swords className="size-4" /> Play the table
-              </Button>
-              {aiOpen && (
-                <div className="grid grid-cols-2 gap-2">
-                  {AI_LEVELS.map((l) => (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => playAi(l.id)}
-                      className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
-                    >
-                      <span className="font-display block text-lg leading-none">{l.name}</span>
-                      <span className="mt-1 block text-xs text-muted">{l.blurb}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <Button size="lg" variant="ghost" className="w-full" onClick={challenge}>
-                <Smartphone className="size-4" /> Challenge a phone
-              </Button>
-              <form onSubmit={join} className="flex gap-2">
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="Join with a code"
-                  maxLength={8}
-                  className="h-12 flex-1 rounded-[14px] border border-border bg-surface px-4 text-sm tracking-[0.2em] outline-none placeholder:tracking-normal placeholder:text-dim focus:border-ivory"
-                />
-                <Button type="submit" variant="subtle" size="lg" aria-label="Join">
-                  <ArrowRight className="size-4" />
-                </Button>
-              </form>
-            </div>
+            </form>
           </div>
         </div>
       </section>
