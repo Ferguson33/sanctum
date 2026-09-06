@@ -475,8 +475,8 @@ test("escapes host-derived values in the install page", () => {
 
 test("renders the manifest with the per-app name", () => {
   const manifest = JSON.parse(renderWebManifest("wild-race.grok.me"));
-  assert.equal(manifest.name, "Wild Race");
-  assert.equal(manifest.short_name, "Wild Race");
+  assert.equal(manifest.name, "Sanctum");
+  assert.equal(manifest.short_name, "Sanctum");
   assert.equal(manifest.icons[0].src, "/__grok/icon-180.png");
 });
 
