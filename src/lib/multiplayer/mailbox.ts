@@ -28,6 +28,7 @@ export function payloadKey(payload: unknown): string | null {
   const p = payload as { t?: string; fen?: string; from?: string; to?: string };
   if (p.t === "move" && p.fen) return `move:${p.fen}`;
   if (p.t === "sync" && p.fen) return `sync:${p.fen}`;
+  if (p.t === "state" || p.t === "have" || p.t === "hello") return null;
   if (p.t === "hello") return null;
   return JSON.stringify(payload);
 }

@@ -12,6 +12,18 @@ export type NetMsg =
       promotion?: PieceType;
       fen: string;
     }
+  | {
+      t: "state";
+      fen: string;
+      ply: number;
+      from?: string;
+      to?: string;
+      promotion?: PieceType;
+      wFaction?: string;
+      bFaction?: string;
+      boardId?: string;
+    }
+  | { t: "have"; ply: number }
   | { t: "resign" }
   | { t: "reset"; fen: string }
   | { t: "theme"; setId: string; boardId: string; wFaction?: string; bFaction?: string };

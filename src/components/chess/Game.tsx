@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   Flag,
   RotateCcw,
+  Send,
   Settings2,
   Share2,
   Undo2,
@@ -51,6 +52,7 @@ const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const PROMOTE: PieceType[] = ["q", "r", "b", "n"];
 
 type Phase = "idle" | "selected" | "promotion" | "animating" | "over";
+type Handoff = "idle" | "ready" | "sending" | "theirs";
 
 interface GameProps {
   mode: "local" | "online";
@@ -115,7 +117,10 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [turn, setTurn] = useState<Side>("w");
   const [solo, setSolo] = useState(false);
   const [linked, setLinked] = useState(false);
+  const [handoff, setHandoff] = useState<Handoff>("idle");
   const didSync = useRef(false);
+  const handoffRef = useRef<Handoff>("idle");
+  handoffRef.current = handoff;
 
   const p2p = useRoomBus({
     room: room ?? "local",
@@ -178,13 +183,36 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
 
   useEffect(() => armAudioUnlock(), []);
 
+  useEffect(() => {
+    if (mode !== "online" || handoff !== "sending") return;
+    const push = () => {
+      const chess = chessRef.current;
+      const last = lastMove;
+      const msg: NetMsg = {
+        t: "state",
+        fen: chess.fen(),
+        ply: plyOfFen(chess.fen()),
+        from: last?.from,
+        to: last?.to,
+        wFaction: table.w,
+        bFaction: table.b,
+        boardId: table.board,
+      };
+      p2p.send(msg);
+    };
+    push();
+    const id = window.setInterval(push, 1400);
+    return () => window.clearInterval(id);
+  }, [handoff, mode]); // eslint-disable-line
+
   const canMove = useCallback(
     (color: Side) => {
       if (phase === "over" || phase === "animating" || phase === "promotion") return false;
+      if (handoff === "ready" || handoff === "sending") return false;
       if (myColor === "both") return true;
       return myColor === color && turn === color;
     },
-    [phase, myColor, turn],
+    [phase, myColor, turn, handoff],
   );
 
   function snapshot(nextChess: Chess, move: MoveRec | null) {
@@ -222,11 +250,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       snapshot(chess, move);
       if (mode === "local" && prefs.autoFlip) setOrientation(chess.turn());
       if (chess.isGameOver() && prefs.sound) playMoveSound("end");
+      if (!remote && mode === "online") setHandoff("ready");
     }, 240);
-    if (!remote && mode === "online") {
-      const msg: NetMsg = { t: "move", from, to, promotion, fen: chess.fen() };
-      p2p.send(msg);
-    }
   }
 
   function handleNet(msg: NetMsg) {
@@ -269,6 +294,40 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     }
     if (msg.t === "reset") {
       reset(msg.fen, true);
+      return;
+    }
+    if (msg.t === "have") {
+      const mine = plyOfFen(chess.fen());
+      if (msg.ply >= mine && handoffRef.current === "sending") setHandoff("theirs");
+      return;
+    }
+    if (msg.t === "state") {
+      const remotePly = msg.ply ?? plyOfFen(msg.fen);
+      const localPly = plyOfFen(chess.fen());
+      if (remotePly < localPly) {
+        p2p.send({ t: "have", ply: localPly } satisfies NetMsg);
+        return;
+      }
+      if (remotePly === localPly) {
+        p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
+        if (handoffRef.current === "sending") setHandoff("theirs");
+        return;
+      }
+      try {
+        chess.load(msg.fen);
+      } catch {
+        return;
+      }
+      setPieces(piecesFromFen(msg.fen));
+      setFen(msg.fen);
+      setTurn(chess.turn());
+      setPhase("idle");
+      setHandoff("idle");
+      setEnding(endingOf(chess));
+      if (msg.from && msg.to) setLastMove({ from: msg.from as Square, to: msg.to as Square });
+      applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
+      p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
+      if (prefs.sound) playMoveSound("move");
       return;
     }
     if (msg.t === "theme") {
@@ -340,12 +399,14 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     setEnding(null);
     setPhase("idle");
     setTurn(chess.turn());
+    setHandoff("idle");
     if (mode === "local") setOrientation("w");
     if (!remote && mode === "online") p2p.send({ t: "reset", fen: chess.fen() } satisfies NetMsg);
   }
 
   function undo() {
-    if (mode !== "local") return;
+    if (mode === "online" && handoff !== "ready") return;
+    if (mode !== "local" && mode !== "online") return;
     const chess = chessRef.current;
     const undone = chess.undo();
     if (!undone) return;
@@ -353,7 +414,13 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     snapshot(chess, null);
     setHistory((h) => h.slice(0, -1));
     setLastMove(null);
-    if (prefs.autoFlip) setOrientation(chess.turn());
+    setHandoff("idle");
+    if (mode === "local" && prefs.autoFlip) setOrientation(chess.turn());
+  }
+
+  function endTurn() {
+    if (mode !== "online" || handoff !== "ready") return;
+    setHandoff("sending");
   }
 
   async function shareRoom() {
@@ -395,12 +462,18 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
               ? "Waiting for the other throne"
               : ending
                 ? endLabel(ending, wFaction.name, bFaction.name)
-                : (
-                    <>
-                      <span className={turn === "w" ? "text-gold" : "text-ember"}>{sideToMove.name}</span>
-                      {" to move"}
-                    </>
-                  )}
+                : handoff === "ready"
+                  ? "End turn to send this ply"
+                  : handoff === "sending"
+                    ? "Handing the board across"
+                    : handoff === "theirs"
+                      ? `${sideToMove.name} has the board`
+                      : (
+                          <>
+                            <span className={turn === "w" ? "text-gold" : "text-ember"}>{sideToMove.name}</span>
+                            {" to move"}
+                          </>
+                        )}
             {chessRef.current.isCheck() && phase !== "over" ? (
               <span className="text-ember"> · check</span>
             ) : (
@@ -437,11 +510,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 py-1 text-xs text-muted">
           <span className="font-medium tracking-[0.2em] text-fg">{room}</span>
           <span>
-            {connectedPeer || linked
-              ? "linked"
-              : p2p.joined
-                ? "searching"
-                : "connecting"}
+            {handoff === "sending" ? "sending" : connectedPeer || linked ? "linked" : p2p.joined ? "searching" : "connecting"}
           </span>
           <button type="button" className="inline-flex items-center gap-1 text-ivory" onClick={shareRoom}>
             <Share2 className="size-3.5" /> Share
@@ -465,7 +534,13 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
           bFaction={bFaction}
           board={board}
           tilt={prefs.tilt}
-          disabled={waiting || phase === "over" || (myColor !== "both" && turn !== myColor)}
+          disabled={
+            waiting ||
+            phase === "over" ||
+            handoff === "ready" ||
+            handoff === "sending" ||
+            (myColor !== "both" && turn !== myColor)
+          }
           onSquare={onSquare}
         />
       </div>
@@ -487,22 +562,37 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
           </>
         ) : (
           <>
-            <p className="text-sm text-muted">
-              You are {host ? wFaction.name : bFaction.name}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => {
-                const winner: Side = host ? "b" : "w";
-                setEnding({ kind: "resign", winner });
-                setPhase("over");
-                p2p.send({ t: "resign" } satisfies NetMsg);
-              }}
-            >
-              <Flag className="size-4" /> Resign
-            </Button>
+            {handoff === "ready" || handoff === "sending" ? (
+              <>
+                <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
+                  <Undo2 className="size-4" /> Undo
+                </Button>
+                <Button className="flex-1" onClick={endTurn} disabled={handoff === "sending"}>
+                  <Send className="size-4" />
+                  {handoff === "sending" ? "Sending…" : "End turn"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted">
+                  You are {host ? wFaction.name : bFaction.name}
+                  {handoff === "theirs" ? " · their ply" : ""}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => {
+                    const winner: Side = host ? "b" : "w";
+                    setEnding({ kind: "resign", winner });
+                    setPhase("over");
+                    p2p.send({ t: "resign" } satisfies NetMsg);
+                  }}
+                >
+                  <Flag className="size-4" /> Resign
+                </Button>
+              </>
+            )}
           </>
         )}
       </footer>
