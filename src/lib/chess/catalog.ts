@@ -346,6 +346,15 @@ export const PIECE_LABEL: Record<PieceType, string> = {
   p: "Pawn",
 };
 
+export const PIECE_CARD: Record<PieceType, string> = {
+  k: "The throne. One square any way. Castles with a rook once.",
+  q: "The long arm. Any direction, any distance.",
+  r: "The keep. Files and ranks, as far as they run.",
+  b: "The rite. Diagonals only.",
+  n: "The rider. Two and one, over anything in the way.",
+  p: "The line. Forward, captures aside. Two steps from home, then one.",
+};
+
 export const GALLERIES: Record<string, { src: string; label: string }[]> = {
   sigil: [
     { src: "/gallery/kings.jpg", label: "Kings" },
