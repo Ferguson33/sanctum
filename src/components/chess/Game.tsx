@@ -53,6 +53,7 @@ const PROMOTE: PieceType[] = ["q", "r", "b", "n"];
 
 type Phase = "idle" | "selected" | "promotion" | "animating" | "over";
 type Handoff = "idle" | "ready" | "sending" | "theirs";
+type Callout = { kind: "turn" | "check"; title: string; body: string } | null;
 
 interface GameProps {
   mode: "local" | "online";
@@ -117,8 +118,10 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [turn, setTurn] = useState<Side>("w");
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
+  const [callout, setCallout] = useState<Callout>(null);
   const didSync = useRef(false);
   const handoffRef = useRef<Handoff>("idle");
+  const calloutTimer = useRef(0);
   handoffRef.current = handoff;
 
   const p2p = useRoomBus({
@@ -213,6 +216,27 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     [phase, myColor, turn, handoff],
   );
 
+  function flash(next: NonNullable<Callout>, ms = 2800) {
+    window.clearTimeout(calloutTimer.current);
+    setCallout(next);
+    calloutTimer.current = window.setTimeout(() => setCallout(null), ms);
+  }
+
+  useEffect(() => {
+    if (mode !== "online" || ending || handoff !== "idle") return;
+    if (myColor !== "both" && turn !== myColor) return;
+    const checked = chessRef.current.isCheck();
+    if (checked) {
+      flash(
+        { kind: "check", title: "Check", body: "Your king is under fire." },
+        3200,
+      );
+    } else {
+      const mine = myColor === "b" ? bFaction : wFaction;
+      flash({ kind: "turn", title: "Your turn", body: `${mine.name} to move.` });
+    }
+  }, [turn, mode, myColor, handoff, ending]); // eslint-disable-line
+
   function snapshot(nextChess: Chess, move: MoveRec | null) {
     setFen(nextChess.fen());
     setTurn(nextChess.turn());
@@ -248,7 +272,15 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       snapshot(chess, move);
       if (mode === "local" && prefs.autoFlip) setOrientation(chess.turn());
       if (chess.isGameOver() && prefs.sound) playMoveSound("end");
-      if (!remote && mode === "online") setHandoff("ready");
+      if (mode === "local" && chess.isCheck() && !chess.isCheckmate()) {
+        flash({ kind: "check", title: "Check", body: "The king is under fire." }, 2800);
+      }
+      if (!remote && mode === "online") {
+        setHandoff(chess.isGameOver() ? "sending" : "ready");
+        if (chess.isCheck() && !chess.isCheckmate()) {
+          flash({ kind: "check", title: "Check", body: "The other king is under fire." }, 2600);
+        }
+      }
     }, 240);
   }
 
@@ -319,13 +351,18 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
       setPieces(piecesFromFen(msg.fen));
       setFen(msg.fen);
       setTurn(chess.turn());
-      setPhase("idle");
+      const end = endingOf(chess);
+      setEnding(end);
+      setPhase(end ? "over" : "idle");
       setHandoff("idle");
-      setEnding(endingOf(chess));
       if (msg.from && msg.to) setLastMove({ from: msg.from as Square, to: msg.to as Square });
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
       p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
-      if (prefs.sound) playMoveSound("move");
+      if (end) {
+        if (prefs.sound) playMoveSound("end");
+      } else if (prefs.sound) {
+        playMoveSound(chess.isCheck() ? "check" : "move");
+      }
       return;
     }
     if (msg.t === "theme") {
@@ -417,7 +454,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }
 
   function endTurn() {
-    if (mode !== "online" || handoff !== "ready") return;
+    if (mode !== "online") return;
+    if (handoff !== "ready" && handoff !== "sending") return;
     setHandoff("sending");
   }
 
@@ -564,7 +602,13 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
                 </Button>
                 <Button className="flex-1" onClick={endTurn} disabled={handoff === "sending"}>
                   <Send className="size-4" />
-                  {handoff === "sending" ? "Sending…" : "End turn"}
+                  {handoff === "sending"
+                    ? ending
+                      ? "Sending the finish…"
+                      : "Sending…"
+                    : ending
+                      ? "Send the finish"
+                      : "End turn"}
                 </Button>
               </>
             ) : (
@@ -612,7 +656,38 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
         </div>
       )}
 
-      {ending && (
+      {callout && (
+        <button
+          type="button"
+          className="absolute inset-x-0 top-[22%] z-40 flex justify-center px-4"
+          onClick={() => {
+            window.clearTimeout(calloutTimer.current);
+            setCallout(null);
+          }}
+        >
+          <div className="panel max-w-sm rounded-[28px] px-8 py-6 text-center">
+            <p
+              className={cn(
+                "text-xs uppercase tracking-[0.28em]",
+                callout.kind === "check" ? "text-ember" : "text-gold",
+              )}
+            >
+              {callout.kind === "check" ? "The king" : "The table"}
+            </p>
+            <p
+              className={cn(
+                "font-display mt-1 text-5xl leading-none",
+                callout.kind === "check" ? "text-ember" : "text-ivory",
+              )}
+            >
+              {callout.title}
+            </p>
+            <p className="mt-2 text-sm text-muted">{callout.body}</p>
+          </div>
+        </button>
+      )}
+
+      {ending && handoff !== "ready" && handoff !== "sending" && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/70 p-4">
           <div className="panel w-full max-w-sm rounded-[28px] p-6 text-center">
             <p className="font-display text-3xl">{endTitle(ending, wFaction.name, bFaction.name)}</p>
