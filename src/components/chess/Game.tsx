@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Board } from "@/components/chess/Board";
+import { ArmyPick } from "@/components/chess/ArmyPick";
 import { Parade } from "@/components/chess/Parade";
 import {
   BOARD_THEMES,
@@ -93,13 +94,16 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
 
 function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const prefs = usePrefs();
-  const [table, setTable] = useState<TableWire>(
-    () => invite ?? { w: prefs.wFaction, b: prefs.bFaction, board: prefs.boardId },
-  );
+  const [table, setTable] = useState<TableWire>(() => {
+    if (invite?.w) return { w: invite.w, b: invite.b, board: invite.board };
+    if (mode === "online") return { w: prefs.wFaction, b: "", board: prefs.boardId };
+    return { w: prefs.wFaction, b: prefs.bFaction, board: prefs.boardId };
+  });
   const wFaction = getFaction(table.w);
   const bFaction = getFaction(table.b);
   const board = getBoard(table.board);
-  const title = tableName(wFaction, bFaction);
+  const seated = Boolean(table.b);
+  const title = seated ? tableName(wFaction, bFaction) : wFaction.name;
 
   const chessRef = useRef(new Chess());
   const [fen, setFen] = useState(START);
@@ -120,7 +124,8 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
   const [callout, setCallout] = useState<Callout>(null);
-  const [parade, setParade] = useState(true);
+  const [parade, setParade] = useState(mode === "local");
+  const didParade = useRef(mode === "local");
   const didSync = useRef(false);
   const handoffRef = useRef<Handoff>("idle");
   const calloutTimer = useRef(0);
@@ -143,6 +148,13 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const myFaction = mySide === "b" ? bFaction : wFaction;
   const theirFaction = mySide === "b" ? wFaction : bFaction;
   const skipParade = useCallback(() => setParade(false), []);
+  const [draftBlack, setDraftBlack] = useState(prefs.bFaction);
+
+  useEffect(() => {
+    if (mode !== "online" || !seated || didParade.current) return;
+    didParade.current = true;
+    setParade(true);
+  }, [mode, seated]);
 
   useEffect(() => {
     if (mode === "local") return;
@@ -174,10 +186,17 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }, [mode, host]);
 
   useEffect(() => {
-    if (mode !== "online" || host || !p2p.table) return;
+    if (mode !== "online" || !p2p.table) return;
     const next = parseTable(p2p.table);
-    if (next) setTable(next);
-  }, [mode, host, p2p.table]);
+    if (!next) return;
+    setTable((cur) => {
+      const w = next.w || cur.w;
+      const board = next.board || cur.board;
+      const b = next.b || cur.b;
+      if (w === cur.w && b === cur.b && board === cur.board) return cur;
+      return { w, b, board };
+    });
+  }, [mode, p2p.table]);
 
   useEffect(() => {
     if (mode !== "online" || !host || !room) return;
@@ -213,7 +232,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }, []);
 
   useEffect(() => {
-    if (mode !== "online" || !linked || parade) return;
+    if (mode !== "online" || !linked || parade || !seated) return;
     flash({ kind: "sat", title: "They sat", body: "The other throne is at the table." }, 2200);
   }, [linked, mode]); // eslint-disable-line
 
@@ -242,11 +261,12 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const canMove = useCallback(
     (color: Side) => {
       if (phase === "over" || phase === "animating" || phase === "promotion") return false;
+      if (mode === "online" && !seated) return false;
       if (handoff === "ready" || handoff === "sending") return false;
       if (myColor === "both") return true;
       return myColor === color && turn === color;
     },
-    [phase, myColor, turn, handoff],
+    [phase, myColor, turn, handoff, mode, seated],
   );
 
   function flash(next: NonNullable<Callout>, ms = 2800) {
@@ -256,7 +276,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }
 
   useEffect(() => {
-    if (mode !== "online" || ending || handoff !== "idle" || parade) return;
+    if (mode !== "online" || ending || handoff !== "idle" || parade || !seated) return;
     if (myColor !== "both" && turn !== myColor) return;
     const checked = chessRef.current.isCheck();
     const them = myColor === "b" ? wFaction : bFaction;
@@ -503,10 +523,26 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     setHandoff("sending");
   }
 
+  function sitBlack() {
+    const id = draftBlack;
+    setTable((cur) => ({ ...cur, b: id }));
+    prefs.setBFaction(id);
+    if (room) {
+      void publishMailbox(room, selfId ?? "guest", {
+        t: "table",
+        w: table.w,
+        b: id,
+        board: table.board,
+      }).catch(() => {});
+    }
+  }
+
   async function shareRoom() {
     if (!room) return;
     const url = `${window.location.origin}/r/${room}?${tableQuery(table)}`;
-    const text = `${wFaction.name} vs ${bFaction.name} — join ${room}`;
+    const text = table.b
+      ? `${wFaction.name} vs ${bFaction.name} — join ${room}`
+      : `${wFaction.name} sits white. Pick your host and join ${room}`;
     try {
       if (navigator.share) await navigator.share({ title: "Sanctum", url, text });
       else {
@@ -760,6 +796,36 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
             }
           }}
         />
+      )}
+
+      {mode === "online" && !seated && host && (
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-bg/70 p-4 pb-10">
+          <div className="panel w-full max-w-md rounded-[28px] p-5 text-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-gold">Your host</p>
+            <p className="font-display mt-1 text-4xl">{wFaction.name}</p>
+            <p className="mt-2 text-sm text-muted text-pretty">
+              Share the link. They pick their army — you’ll see their six sit before the table opens.
+            </p>
+            <Button className="mt-4 w-full" onClick={shareRoom}>
+              Share
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === "online" && !seated && !host && (
+        <div className="absolute inset-0 z-40 overflow-y-auto bg-bg/90 px-4 py-8 pt-[max(1.5rem,env(safe-area-inset-top))]">
+          <div className="mx-auto max-w-lg pb-8">
+            <ArmyPick
+              kicker="Pick your host"
+              note={`${wFaction.name} already sits white. Choose who you sit as black — tap an army to inspect every rank.`}
+              selected={draftBlack}
+              onSelect={setDraftBlack}
+              onSit={sitBlack}
+              sitLabel={`Sit as ${getFaction(draftBlack).name}`}
+            />
+          </div>
+        </div>
       )}
 
       {parade && (

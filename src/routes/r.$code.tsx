@@ -4,10 +4,11 @@ import { Game } from "@/components/chess/Game";
 import { hostKey, parseTable, peerKey } from "@/lib/chess/net";
 
 export const Route = createFileRoute("/r/$code")({
-  validateSearch: (raw: Record<string, unknown>): { w?: string; b?: string; board?: string } => ({
+  validateSearch: (raw: Record<string, unknown>): { w?: string; b?: string; board?: string; open?: string } => ({
     ...(typeof raw.w === "string" ? { w: raw.w } : {}),
     ...(typeof raw.b === "string" ? { b: raw.b } : {}),
     ...(typeof raw.board === "string" ? { board: raw.board } : {}),
+    ...(typeof raw.open === "string" ? { open: raw.open } : {}),
   }),
   component: RoomPage,
 });

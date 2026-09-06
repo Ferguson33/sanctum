@@ -35,14 +35,17 @@ export function isNetMsg(v: unknown): v is NetMsg {
 export function parseTable(input: { w?: string; b?: string; board?: string } | null | undefined): TableWire | null {
   if (!input) return null;
   const w = knownFactionId(input.w);
-  const b = knownFactionId(input.b);
   const board = knownBoardId(input.board);
-  if (!w || !b || !board) return null;
+  if (!w || !board) return null;
+  const b = knownFactionId(input.b) ?? "";
   return { w, b, board };
 }
 
 export function tableQuery(t: TableWire): string {
-  return new URLSearchParams({ w: t.w, b: t.b, board: t.board }).toString();
+  const p = new URLSearchParams({ w: t.w, board: t.board });
+  if (t.b) p.set("b", t.b);
+  else p.set("open", "1");
+  return p.toString();
 }
 
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
