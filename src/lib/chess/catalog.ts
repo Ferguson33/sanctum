@@ -206,6 +206,14 @@ export const DEFAULT_W_FACTION = "canon-ivory";
 export const DEFAULT_B_FACTION = "canon-ember";
 export const DEFAULT_BOARD_ID = "reliquary";
 
+export function knownFactionId(id: string | null | undefined): string | undefined {
+  return FACTIONS.some((f) => f.id === id) ? id! : undefined;
+}
+
+export function knownBoardId(id: string | null | undefined): string | undefined {
+  return BOARD_THEMES.some((b) => b.id === id) ? id! : undefined;
+}
+
 export function getSet(id: string | null | undefined): PieceSet {
   return PIECE_SETS.find((s) => s.id === id) ?? PIECE_SETS[0];
 }

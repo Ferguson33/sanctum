@@ -25,14 +25,18 @@ function Home() {
   function challenge() {
     const room = makeRoomCode();
     localStorage.setItem(hostKey(room), "1");
-    void nav({ to: "/r/$code", params: { code: room } });
+    void nav({
+      to: "/r/$code",
+      params: { code: room },
+      search: { w: prefs.wFaction, b: prefs.bFaction, board: prefs.boardId },
+    });
   }
 
   function join(e: FormEvent) {
     e.preventDefault();
     const room = code.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     if (room.length < 4) return;
-    void nav({ to: "/r/$code", params: { code: room } });
+    void nav({ to: "/r/$code", params: { code: room }, search: {} });
   }
 
   return (

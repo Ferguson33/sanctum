@@ -40,7 +40,7 @@ import {
   type MoveRec,
   type Square,
 } from "@/lib/chess/engine";
-import { isNetMsg, type NetMsg } from "@/lib/chess/net";
+import { isNetMsg, parseTable, tableQuery, type NetMsg, type TableWire } from "@/lib/chess/net";
 import { usePrefs } from "@/lib/chess/prefs";
 import { playMoveSound, unlockAudio, armAudioUnlock } from "@/lib/chess/sound";
 import { useP2PRoom } from "@/lib/multiplayer/use-p2p-room";
@@ -56,6 +56,7 @@ interface GameProps {
   room?: string;
   host?: boolean;
   selfId?: string;
+  invite?: TableWire | null;
 }
 
 export function Game(props: GameProps) {
@@ -85,11 +86,14 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
   }
 }
 
-function GameTable({ mode, room, host = false, selfId }: GameProps) {
+function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const prefs = usePrefs();
-  const wFaction = getFaction(prefs.wFaction);
-  const bFaction = getFaction(prefs.bFaction);
-  const board = getBoard(prefs.boardId);
+  const [table, setTable] = useState<TableWire>(
+    () => invite ?? { w: prefs.wFaction, b: prefs.bFaction, board: prefs.boardId },
+  );
+  const wFaction = getFaction(table.w);
+  const bFaction = getFaction(table.b);
+  const board = getBoard(table.board);
   const title = tableName(wFaction, bFaction);
 
   const chessRef = useRef(new Chess());
@@ -141,9 +145,9 @@ function GameTable({ mode, room, host = false, selfId }: GameProps) {
       t: "sync",
       fen: chessRef.current.fen(),
       setId: prefs.setId,
-      boardId: prefs.boardId,
-      wFaction: prefs.wFaction,
-      bFaction: prefs.bFaction,
+      boardId: table.board,
+      wFaction: table.w,
+      bFaction: table.b,
     };
     p2p.send(msg, connectedPeer.id);
   }, [connectedPeer?.id, host, mode]); // eslint-disable-line
@@ -151,6 +155,21 @@ function GameTable({ mode, room, host = false, selfId }: GameProps) {
   useEffect(() => {
     if (mode === "online") setOrientation(host ? "w" : "b");
   }, [mode, host]);
+
+  useEffect(() => {
+    if (mode !== "online" || host || !p2p.table) return;
+    const next = parseTable(p2p.table);
+    if (next) setTable(next);
+  }, [mode, host, p2p.table]);
+
+  useEffect(() => {
+    if (mode !== "online" || !host || !room) return;
+    void fetch("/api/rtc", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ op: "table", room, w: table.w, b: table.b, board: table.board }),
+    }).catch(() => {});
+  }, [mode, host, room, table.w, table.b, table.board]);
 
   useEffect(() => armAudioUnlock(), []);
 
@@ -239,6 +258,13 @@ function GameTable({ mode, room, host = false, selfId }: GameProps) {
   }
 
   function applyTheme(setId: string, boardId: string, w?: string, b?: string) {
+    const next =
+      parseTable({ w: w ?? table.w, b: b ?? table.b, board: boardId }) ?? {
+        w: table.w,
+        b: table.b,
+        board: boardId,
+      };
+    setTable(next);
     if (w && b) {
       prefs.setWFaction(w);
       prefs.setBFaction(b);
@@ -313,9 +339,10 @@ function GameTable({ mode, room, host = false, selfId }: GameProps) {
 
   async function shareRoom() {
     if (!room) return;
-    const url = `${window.location.origin}/r/${room}`;
+    const url = `${window.location.origin}/r/${room}?${tableQuery(table)}`;
+    const text = `${wFaction.name} vs ${bFaction.name} — join ${room}`;
     try {
-      if (navigator.share) await navigator.share({ title: "Sanctum", url, text: `Join my board: ${room}` });
+      if (navigator.share) await navigator.share({ title: "Sanctum", url, text });
       else {
         await navigator.clipboard.writeText(url);
         toast("Link copied");
@@ -469,7 +496,7 @@ function GameTable({ mode, room, host = false, selfId }: GameProps) {
             <p className="text-xs uppercase tracking-[0.22em] text-muted">Room</p>
             <p className="font-display mt-1 text-4xl tracking-[0.28em]">{room}</p>
             <p className="mt-3 text-sm text-muted text-pretty">
-              Open this on the other phone and join with the code, or share the link.
+              {title} is set. Open this on the other phone and join with the code, or share the link.
             </p>
             {failedPeer && (
               <p className="mt-2 text-sm text-ember">
@@ -526,6 +553,7 @@ function GameTable({ mode, room, host = false, selfId }: GameProps) {
         <SettingsSheet
           onClose={() => setSettings(false)}
           onTheme={(setId, boardId, w, b) => {
+            applyTheme(setId, boardId, w, b);
             if (mode === "online") {
               p2p.send({ t: "theme", setId, boardId, wFaction: w, bFaction: b } satisfies NetMsg);
             }

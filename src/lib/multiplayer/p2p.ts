@@ -29,6 +29,7 @@ export interface SignalRow {
 export interface RtcPollResponse {
   peers: PeerRow[];
   signals: SignalRow[];
+  table?: { w: string; b: string; board: string };
 }
 
 export interface PeerInfo {
@@ -52,6 +53,7 @@ export interface P2PRoomOptions {
   onMessage?: (from: string, data: unknown, channel: "state" | "reliable") => void;
   /** Fires once, on the first successful signaling poll (registration). */
   onConnected?: () => void;
+  onTable?: (table: { w: string; b: string; board: string }) => void;
 }
 
 interface PeerSlot {
@@ -201,6 +203,7 @@ export class P2PRoom {
       this.everPolled = true;
       this.opts.onConnected?.();
     }
+    if (body.table) this.opts.onTable?.(body.table);
     this.reconcileRoster(body.peers);
     const roster = new Set(body.peers.map((p) => p.id));
     for (const sig of body.signals) {

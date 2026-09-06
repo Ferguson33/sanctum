@@ -19,17 +19,24 @@ const signalSchema = z.object({
   }),
 });
 const leaveSchema = z.object({ op: z.literal("leave"), room: ID, peer: ID });
-const postSchema = z.discriminatedUnion("op", [signalSchema, leaveSchema]);
+const tableSchema = z.object({
+  op: z.literal("table"),
+  room: ID,
+  w: z.string().max(32),
+  b: z.string().max(32),
+  board: z.string().max(32),
+});
+const postSchema = z.discriminatedUnion("op", [signalSchema, leaveSchema, tableSchema]);
 
 const PEER_TTL_SECONDS = 30;
 const SIGNAL_TTL_SECONDS = 60;
 
 const globalRef = globalThis as typeof globalThis & {
-  __rtcSchemaPromise__?: Promise<void>;
+  __rtcSchemaPromiseV2__?: Promise<void>;
 };
 
 function ensureSchema(sql: Sql): Promise<void> {
-  globalRef.__rtcSchemaPromise__ ??= (async () => {
+  globalRef.__rtcSchemaPromiseV2__ ??= (async () => {
     await sql.query(
       `CREATE TABLE IF NOT EXISTS webrtc_peers (
          room TEXT NOT NULL,
@@ -54,8 +61,17 @@ function ensureSchema(sql: Sql): Promise<void> {
       `CREATE INDEX IF NOT EXISTS webrtc_signals_inbox
          ON webrtc_signals (room, to_peer, id)`,
     );
+    await sql.query(
+      `CREATE TABLE IF NOT EXISTS webrtc_tables (
+         room TEXT PRIMARY KEY,
+         w TEXT NOT NULL,
+         b TEXT NOT NULL,
+         board TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`,
+    );
   })().catch((err) => {
-    globalRef.__rtcSchemaPromise__ = undefined;
+    globalRef.__rtcSchemaPromiseV2__ = undefined;
     throw err;
   });
   return globalRef.__rtcSchemaPromise__;
@@ -88,6 +104,9 @@ async function prune(sql: Sql) {
     ]),
     sql.query(`DELETE FROM webrtc_peers WHERE last_seen < now() - make_interval(secs => $1)`, [
       PEER_TTL_SECONDS,
+    ]),
+    sql.query(`DELETE FROM webrtc_tables WHERE updated_at < now() - make_interval(secs => $1)`, [
+      6 * 3600,
     ]),
   ]);
 }
@@ -131,6 +150,10 @@ async function handleGet(url: URL): Promise<Response> {
      ORDER BY id LIMIT 200`,
     [room, peer, since],
   );
+  const tableRows = await sql.query<{ w: string; b: string; board: string }>(
+    `SELECT w, b, board FROM webrtc_tables WHERE room = $1 LIMIT 1`,
+    [room],
+  );
   const body: RtcPollResponse = {
     peers: await roster(sql, room),
     signals: rows.map((r) => ({
@@ -139,6 +162,7 @@ async function handleGet(url: URL): Promise<Response> {
       kind: r.kind,
       payload: r.payload,
     })),
+    table: tableRows[0],
   };
   return json(body);
 }
@@ -161,6 +185,14 @@ async function handlePost(request: Request): Promise<Response> {
       `INSERT INTO webrtc_signals (room, to_peer, from_peer, kind, payload)
        VALUES ($1, $2, $3, $4, $5)`,
       [msg.room, msg.to, msg.from, msg.kind, JSON.stringify(msg.payload)],
+    );
+  } else if (msg.op === "table") {
+    await sql.query(
+      `INSERT INTO webrtc_tables (room, w, b, board, updated_at)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (room)
+       DO UPDATE SET w = EXCLUDED.w, b = EXCLUDED.b, board = EXCLUDED.board, updated_at = now()`,
+      [msg.room, msg.w, msg.b, msg.board],
     );
   } else {
     await sql.query(`DELETE FROM webrtc_peers WHERE room = $1 AND peer_id = $2`, [

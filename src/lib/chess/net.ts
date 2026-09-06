@@ -1,4 +1,6 @@
-import type { PieceType } from "./catalog";
+import { knownBoardId, knownFactionId, type PieceType } from "./catalog";
+
+export type TableWire = { w: string; b: string; board: string };
 
 export type NetMsg =
   | { t: "hello"; host: boolean; name: string }
@@ -16,6 +18,19 @@ export type NetMsg =
 
 export function isNetMsg(v: unknown): v is NetMsg {
   return !!v && typeof v === "object" && "t" in v && typeof (v as { t: unknown }).t === "string";
+}
+
+export function parseTable(input: { w?: string; b?: string; board?: string } | null | undefined): TableWire | null {
+  if (!input) return null;
+  const w = knownFactionId(input.w);
+  const b = knownFactionId(input.b);
+  const board = knownBoardId(input.board);
+  if (!w || !b || !board) return null;
+  return { w, b, board };
+}
+
+export function tableQuery(t: TableWire): string {
+  return new URLSearchParams({ w: t.w, b: t.b, board: t.board }).toString();
 }
 
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

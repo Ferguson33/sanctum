@@ -17,6 +17,7 @@ export interface P2PRoomHandle {
   room: string;
   peers: PeerInfo[];
   joined: boolean;
+  table: { w: string; b: string; board: string } | null;
   broadcast: (data: unknown) => void;
   send: (data: unknown, peerId?: string) => void;
   onMessage: (
@@ -38,6 +39,7 @@ export function useP2PRoom(options: UseP2PRoomOptions = {}): P2PRoomHandle {
   const [name] = useState(() => options.name ?? selfId);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [joined, setJoined] = useState(false);
+  const [table, setTable] = useState<{ w: string; b: string; board: string } | null>(null);
   const roomRef = useRef<P2PRoom | null>(null);
   const listeners = useRef(
     new Set<(from: string, data: unknown, channel: "state" | "reliable") => void>(),
@@ -54,6 +56,7 @@ export function useP2PRoom(options: UseP2PRoomOptions = {}): P2PRoomHandle {
         for (const fn of listeners.current) fn(from, data, channel);
       },
       onConnected: () => setJoined(true),
+      onTable: setTable,
     });
     roomRef.current = p2p;
     void p2p.join();
@@ -78,5 +81,5 @@ export function useP2PRoom(options: UseP2PRoomOptions = {}): P2PRoomHandle {
     [],
   );
 
-  return { selfId, room, peers, joined, broadcast, send, onMessage };
+  return { selfId, room, peers, joined, table, broadcast, send, onMessage };
 }
