@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Board } from "@/components/chess/Board";
+import { Parade } from "@/components/chess/Parade";
 import {
   BOARD_THEMES,
   FACTIONS,
@@ -119,6 +120,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
   const [callout, setCallout] = useState<Callout>(null);
+  const [parade, setParade] = useState(true);
   const didSync = useRef(false);
   const handoffRef = useRef<Handoff>("idle");
   const calloutTimer = useRef(0);
@@ -137,6 +139,10 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     if (connectedPeer) setLinked(true);
   }, [connectedPeer]);
   const myColor: Side | "both" = mode === "local" ? "both" : host ? "w" : "b";
+  const mySide: Side = myColor === "b" ? "b" : "w";
+  const myFaction = mySide === "b" ? bFaction : wFaction;
+  const theirFaction = mySide === "b" ? wFaction : bFaction;
+  const skipParade = useCallback(() => setParade(false), []);
 
   useEffect(() => {
     if (mode === "local") return;
@@ -207,7 +213,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }, []);
 
   useEffect(() => {
-    if (mode !== "online" || !linked) return;
+    if (mode !== "online" || !linked || parade) return;
     flash({ kind: "sat", title: "They sat", body: "The other throne is at the table." }, 2200);
   }, [linked, mode]); // eslint-disable-line
 
@@ -250,7 +256,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
   }
 
   useEffect(() => {
-    if (mode !== "online" || ending || handoff !== "idle") return;
+    if (mode !== "online" || ending || handoff !== "idle" || parade) return;
     if (myColor !== "both" && turn !== myColor) return;
     const checked = chessRef.current.isCheck();
     const them = myColor === "b" ? wFaction : bFaction;
@@ -269,7 +275,7 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
     } else {
       flash({ kind: "turn", title: "Your turn", body: `${mine.name} to move.` });
     }
-  }, [turn, mode, myColor, handoff, ending]); // eslint-disable-line
+  }, [turn, mode, myColor, handoff, ending, parade]); // eslint-disable-line
 
   function snapshot(nextChess: Chess, move: MoveRec | null) {
     setFen(nextChess.fen());
@@ -753,6 +759,17 @@ function GameTable({ mode, room, host = false, selfId, invite }: GameProps) {
               p2p.send({ t: "theme", setId, boardId, wFaction: w, bFaction: b } satisfies NetMsg);
             }
           }}
+        />
+      )}
+
+      {parade && (
+        <Parade
+          first={myFaction}
+          second={theirFaction}
+          firstSide={mySide}
+          secondSide={mySide === "w" ? "b" : "w"}
+          board={board}
+          onDone={skipParade}
         />
       )}
     </div>
