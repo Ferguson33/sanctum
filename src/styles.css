@@ -453,11 +453,16 @@
   position: absolute;
   top: max(0.8rem, env(safe-area-inset-top));
   right: 1rem;
-  z-index: 3;
+  z-index: 5;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-ivory) 35%, transparent);
+  background: color-mix(in oklab, var(--color-bg) 72%, transparent);
   font-size: 12px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-ivory);
+  backdrop-filter: blur(8px);
 }
 
 @keyframes paradeTruck {
