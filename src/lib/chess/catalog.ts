@@ -175,6 +175,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...PAGEANT_SCALE,
+    intro: "/sets/drift/intro.mp4",
   },
 ];
 
