@@ -89,6 +89,12 @@ const BAKUFU_SCALE = {
   fit: "statue" as const,
 };
 
+const KINGDOM_SCALE = {
+  scale: { width: 0.92, height: 1.12 },
+  typeScale: { r: 1.10, n: 1.12, q: 1.16, k: 1.16, b: 1.06, p: 0.74 } as Partial<Record<PieceType, number>>,
+  fit: "statue" as const,
+};
+
 export const FACTIONS: Faction[] = [
   {
     id: "good",
@@ -187,6 +193,16 @@ export const FACTIONS: Faction[] = [
     ...PAGEANT_SCALE,
     intro: "/sets/drift/intro.mp4",
   },
+  {
+    id: "kingdom",
+    name: "Animal Kingdom",
+    epithet: "the Pride",
+    family: "Wild",
+    dir: "kingdom",
+    ext: "webp",
+    file: "w",
+    ...KINGDOM_SCALE,
+  },
 ];
 
 export const PIECE_SETS: PieceSet[] = [
@@ -224,6 +240,13 @@ export const PIECE_SETS: PieceSet[] = [
     tagline: "The Far Choir against Ruin",
     w: "aliens",
     b: "evil",
+  },
+  {
+    id: "wild",
+    name: "Wild",
+    tagline: "The Pride against the Underhold",
+    w: "kingdom",
+    b: "dwarves",
   },
 ];
 
@@ -300,6 +323,18 @@ export const BOARD_THEMES: BoardTheme[] = [
     table: "#0a0614",
     inlay: "#3a2060",
   },
+  {
+    id: "pride",
+    name: "Pride Rock",
+    tagline: "Bronze on volcanic stone",
+    light: "/boards/pride/light.jpg",
+    dark: "/boards/pride/dark.jpg",
+    lightFill: "#c4a574",
+    darkFill: "#1c1610",
+    frame: "#8a7048",
+    table: "#0c0a08",
+    inlay: "#5a4830",
+  },
 ];
 
 export const DEFAULT_SET_ID = "grove";
@@ -313,6 +348,7 @@ export const HERO_LINEUP: { faction: string; type: PieceType }[] = [
   { faction: "elves", type: "n" },
   { faction: "dwarves", type: "k" },
   { faction: "evil", type: "k" },
+  { faction: "kingdom", type: "k" },
 ];
 
 export function knownFactionId(id: string | null | undefined): string | undefined {
