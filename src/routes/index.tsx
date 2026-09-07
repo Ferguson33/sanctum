@@ -44,16 +44,14 @@ function Home() {
 
   return (
     <main className="min-h-dvh bg-bg text-fg">
-      <section className="relative flex min-h-dvh flex-col">
+      <section className="relative h-dvh overflow-hidden">
         <div aria-hidden className="arena-wash absolute inset-0" />
-        <header className="relative z-10 bg-gradient-to-b from-bg/80 via-bg/30 to-transparent px-5 pb-2 pt-[max(3.2rem,env(safe-area-inset-top))] text-center">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-bg/80 via-bg/25 to-transparent px-5 pb-16 pt-[max(3.2rem,env(safe-area-inset-top))] text-center">
           <p className="text-xs uppercase tracking-[0.28em] text-gold">A table of hosts</p>
           <h1 className="font-display mt-1 text-5xl leading-none sm:text-7xl">Sanctum</h1>
         </header>
-        <div className="relative min-h-0 flex-1">
-          <HeroLineup />
-        </div>
-        <div className="relative z-10 bg-gradient-to-t from-bg via-bg/90 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10">
+        <HeroLineup />
+        <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-bg via-bg/80 to-transparent px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8">
           <div className="mx-auto flex max-w-md flex-col gap-2">
             <Button size="lg" className="w-full" onClick={() => nav({ to: "/play" })}>
               <Users className="size-4" /> Pass and play
