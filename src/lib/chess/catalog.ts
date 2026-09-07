@@ -83,6 +83,12 @@ const PAGEANT_SCALE = {
   fit: "statue" as const,
 };
 
+const BAKUFU_SCALE = {
+  scale: { width: 0.96, height: 1.14 },
+  typeScale: { r: 1.22, n: 1.20, q: 1.12, k: 1.18, b: 1.08, p: 0.60 } as Partial<Record<PieceType, number>>,
+  fit: "statue" as const,
+};
+
 export const FACTIONS: Faction[] = [
   {
     id: "good",
@@ -167,7 +173,7 @@ export const FACTIONS: Faction[] = [
     dir: "bakufu",
     ext: "webp",
     file: "w",
-    ...PAGEANT_SCALE,
+    ...BAKUFU_SCALE,
     intro: "/sets/bakufu/intro.mp4",
   },
   {
@@ -344,7 +350,7 @@ export function tableName(w: Faction, b: Faction): string {
 }
 
 export function factionSrc(faction: Faction, type: PieceType): string {
-  const bust = faction.ext === "svg" ? "?v=3" : "?v=4";
+  const bust = faction.ext === "svg" ? "?v=3" : "?v=5";
   return `/sets/${faction.dir}/${faction.file}-${type}.${faction.ext}${bust}`;
 }
 
