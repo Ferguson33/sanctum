@@ -198,10 +198,11 @@
   border-radius: 2px;
   background: radial-gradient(
     circle,
-    color-mix(in oklab, var(--color-ember) 78%, transparent),
-    transparent 70%
+    color-mix(in oklab, var(--color-ember) 88%, transparent),
+    color-mix(in oklab, var(--color-gold) 30%, transparent) 48%,
+    transparent 72%
   );
-  animation: impactBurst 520ms ease-out forwards;
+  animation: impactBurst 900ms ease-out forwards;
 }
 
 .impact-check {
@@ -260,6 +261,62 @@
   }
   100% {
     transform: translateY(0) scale(1);
+  }
+}
+
+
+.sq-last-from {
+  background: color-mix(in oklab, var(--color-gold) 26%, transparent) !important;
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--color-gold) 70%, transparent);
+}
+
+.sq-last-to {
+  background: color-mix(in oklab, var(--color-gold) 42%, transparent) !important;
+  box-shadow:
+    inset 0 0 0 3px var(--color-gold),
+    inset 0 0 18px color-mix(in oklab, var(--color-gold) 35%, transparent);
+  animation: lastToPulse 1.8s ease-in-out 2;
+}
+
+.sq-last-to.is-capture {
+  background: color-mix(in oklab, var(--color-ember) 48%, transparent) !important;
+  box-shadow:
+    inset 0 0 0 3px var(--color-ember),
+    inset 0 0 22px color-mix(in oklab, var(--color-ember) 45%, transparent);
+  animation: lastCapPulse 1.6s ease-in-out 3;
+}
+
+@keyframes lastToPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18); }
+}
+
+@keyframes lastCapPulse {
+  0%, 100% { filter: brightness(1); }
+  40% { filter: brightness(1.25); }
+}
+
+.cap-fresh {
+  outline: 2px solid var(--color-ember);
+  outline-offset: 2px;
+  border-radius: 4px;
+  animation: capFresh 2.4s ease-out;
+  z-index: 2;
+}
+
+@keyframes capFresh {
+  0% {
+    transform: scale(1.55);
+    opacity: 1;
+    filter: drop-shadow(0 0 12px color-mix(in oklab, var(--color-ember) 80%, transparent));
+  }
+  35% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.95;
+    filter: none;
   }
 }
 
