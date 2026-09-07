@@ -64,7 +64,7 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
           <HostReel
             key={faction.id}
             src={faction.intro}
-            poster={faction.intro.replace(/\.mp4$/, ".jpg")}
+            poster={faction.intro.replace(/\.mp4(\?.*)?$/, ".jpg$1")}
             onEnded={nextShot}
             onBroken={() => setReelBroken(true)}
           />
