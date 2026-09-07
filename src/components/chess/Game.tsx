@@ -667,9 +667,26 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             )}
           </p>
         </div>
+        {mode === "online" && (handoff === "ready" || handoff === "sending") ? (
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={endTurn}
+            disabled={handoff === "sending"}
+          >
+            <Send className="size-4" />
+            {handoff === "sending"
+              ? ending
+                ? "Sending…"
+                : "Sending…"
+              : ending
+                ? "Send finish"
+                : "End turn"}
+          </Button>
+        ) : null}
         <button
           type="button"
-          className="flex size-10 items-center justify-center rounded-[12px] border border-border bg-bg/50"
+          className="flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-bg/50"
           onClick={() => {
             const next = !prefs.sound;
             prefs.setSound(next);
@@ -684,7 +701,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </button>
         <button
           type="button"
-          className="flex size-10 items-center justify-center rounded-[12px] border border-border bg-bg/50"
+          className="flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-bg/50"
           onClick={() => setSettings(true)}
           aria-label="Settings"
         >
@@ -738,18 +755,15 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <>
             {handoff === "ready" || handoff === "sending" ? (
               <>
-                <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
-                  <Undo2 className="size-4" /> Undo
-                </Button>
-                <Button className="flex-1" onClick={endTurn} disabled={handoff === "sending"}>
-                  <Send className="size-4" />
+                <p className="min-w-0 flex-1 truncate text-sm text-muted">
                   {handoff === "sending"
                     ? ending
                       ? "Sending the finish…"
-                      : "Sending…"
-                    : ending
-                      ? "Send the finish"
-                      : "End turn"}
+                      : "Handing the board across…"
+                    : "End turn is top-right when you’re ready."}
+                </p>
+                <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
+                  <Undo2 className="size-4" /> Undo
                 </Button>
               </>
             ) : (
