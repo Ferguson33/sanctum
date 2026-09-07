@@ -44,8 +44,9 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
       const t = window.setTimeout(onDone, 2400);
       return () => window.clearTimeout(t);
     }
-    const ms = reel ? 9000 : 5200;
-    const t = window.setTimeout(() => setShot((s) => (s === 0 ? 1 : 2)), ms);
+    // Reels end via onEnded. Safety net only — don't cut an 8–10s clip short.
+    const ms = reel ? 14000 : 5200;
+    const t = window.setTimeout(() => setShot((s) => (s === shot ? ((shot === 0 ? 1 : 2) as 0 | 1 | 2) : s)), ms);
     return () => window.clearTimeout(t);
   }, [shot, reel, onDone]);
 
@@ -61,6 +62,7 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
       {shot < 2 ? (
         reel && faction.intro ? (
           <HostReel
+            key={faction.id}
             src={faction.intro}
             poster={faction.intro.replace(/\.mp4$/, ".jpg")}
             onEnded={nextShot}

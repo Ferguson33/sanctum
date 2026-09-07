@@ -104,6 +104,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "b",
     ...SANCTUM_SCALE,
+    intro: "/sets/sanctum/intro-ruin.mp4",
   },
   {
     id: "elves",
@@ -114,6 +115,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...GROVE_SCALE,
+    intro: "/sets/grove/intro-elves.mp4",
   },
   {
     id: "dwarves",
@@ -124,6 +126,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "b",
     ...GROVE_SCALE,
+    intro: "/sets/grove/intro-dwarves.mp4",
   },
   {
     id: "canon-ivory",
