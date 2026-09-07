@@ -27,7 +27,7 @@ interface BoardProps {
   selected: Square | null;
   legal: Square[];
   captures: Square[];
-  lastMove: { from: Square; to: Square } | null;
+  lastMove: { from: Square; to: Square; captured?: boolean } | null;
   impact?: { square: Square; kind: "move" | "capture" | "check" } | null;
   wFaction: Faction;
   bFaction: Faction;
@@ -150,9 +150,7 @@ export function Board({
                         backgroundColor: fill,
                         boxShadow: isSel
                           ? "inset 0 0 0 3px var(--color-gold), inset 0 0 0 6px rgb(11 10 12 / 0.55)"
-                          : isLast
-                            ? "inset 0 0 0 3px var(--color-gold)"
-                            : undefined,
+                          : undefined,
                       }}
                     >
                       {texture ? (
@@ -170,13 +168,14 @@ export function Board({
                       {isLast ? (
                         <span
                           aria-hidden
-                          className="absolute inset-0"
-                          style={{
-                            background:
-                              lastMove?.to === sq
-                                ? "color-mix(in oklab, var(--color-gold) 32%, transparent)"
-                                : "color-mix(in oklab, var(--color-gold) 18%, transparent)",
-                          }}
+                          className={cn(
+                            "absolute inset-0 pointer-events-none",
+                            lastMove?.to === sq
+                              ? lastMove?.captured
+                                ? "sq-last-to is-capture"
+                                : "sq-last-to"
+                              : "sq-last-from",
+                          )}
                         />
                       ) : null}
                       {r === 7 && (
