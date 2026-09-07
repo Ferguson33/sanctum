@@ -459,6 +459,14 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     prefs.setBoardId(boardId);
   }
 
+
+  /** Rook square used to request O-O / O-O-O (avoids fat-finger on g/c files). */
+  function castleRookOf(color: Side, flags: string): Square | null {
+    if (flags.includes("k")) return (color === "w" ? "h1" : "h8") as Square;
+    if (flags.includes("q")) return (color === "w" ? "a1" : "a8") as Square;
+    return null;
+  }
+
   function onSquare(sq: Square) {
     unlockAudio();
     const chess = chessRef.current;
@@ -466,6 +474,25 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (!canMove(chess.turn())) return;
 
     if (phase === "selected" && selected) {
+      const selPiece = chess.get(selected);
+      if (selPiece?.type === "k") {
+        const castles = legalMoves(chess, selected).filter(
+          (m) => m.flags.includes("k") || m.flags.includes("q"),
+        );
+        const onRook = chess.get(sq);
+        if (onRook?.type === "r" && onRook.color === chess.turn()) {
+          const match = castles.find((m) => castleRookOf(selPiece.color as Side, m.flags) === sq);
+          if (match) {
+            commitMove(selected, match.to);
+            return;
+          }
+        }
+        // Ignore direct taps on g1/c1 (etc.) — those were easy to hit by accident.
+        if (castles.some((m) => m.to === sq)) {
+          return;
+        }
+      }
+
       if (legal.includes(sq) || caps.includes(sq)) {
         if (needsPromotion(chess, selected, sq)) {
           setPending({ from: selected, to: sq });
@@ -480,6 +507,18 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     const piece = chess.get(sq);
     if (piece && piece.color === chess.turn()) {
       const moves = legalMoves(chess, sq);
+      if (piece.type === "k") {
+        const castles = moves.filter((m) => m.flags.includes("k") || m.flags.includes("q"));
+        const rest = moves.filter((m) => !m.flags.includes("k") && !m.flags.includes("q"));
+        const rookDots = castles
+          .map((m) => castleRookOf(piece.color as Side, m.flags))
+          .filter((r): r is Square => r != null);
+        setSelected(sq);
+        setLegal([...rest.filter((m) => !m.captured).map((m) => m.to), ...rookDots]);
+        setCaps(rest.filter((m) => m.captured).map((m) => m.to));
+        setPhase("selected");
+        return;
+      }
       setSelected(sq);
       setLegal(moves.filter((m) => !m.captured).map((m) => m.to));
       setCaps(moves.filter((m) => m.captured).map((m) => m.to));
