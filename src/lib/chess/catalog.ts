@@ -386,7 +386,7 @@ export function tableName(w: Faction, b: Faction): string {
 }
 
 export function factionSrc(faction: Faction, type: PieceType): string {
-  const bust = faction.ext === "svg" ? "?v=3" : "?v=6";
+  const bust = faction.ext === "svg" ? "?v=3" : "?v=7";
   return `/sets/${faction.dir}/${faction.file}-${type}.${faction.ext}${bust}`;
 }
 

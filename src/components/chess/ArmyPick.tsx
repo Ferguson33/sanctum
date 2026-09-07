@@ -44,7 +44,7 @@ export function ArmyRoster({
       {INSPECT.map((t) => {
         const body = (
           <>
-            {pieceImg(faction, t, cn(h, "w-auto object-contain object-bottom"))}
+            {pieceImg(faction, t, cn(h, "w-auto max-w-full object-contain object-bottom"))}
             <figcaption className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
               {PIECE_LABEL[t]}
             </figcaption>

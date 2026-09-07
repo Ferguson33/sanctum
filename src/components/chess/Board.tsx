@@ -356,7 +356,7 @@ function PieceView({
           style={
             glyph
               ? { width: `${sized}%`, maxHeight: "96%" }
-              : { height: `${Math.min(sized, 128)}%`, width: "auto", maxWidth: "170%" }
+              : { height: `${Math.min(sized, 128)}%`, width: "auto", maxWidth: "240%" }
           }
         />
       </div>
