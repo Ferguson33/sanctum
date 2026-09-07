@@ -47,6 +47,7 @@ import {
 import { isNetMsg, parseTable, tableQuery, type NetMsg, type TableWire } from "@/lib/chess/net";
 import { usePrefs } from "@/lib/chess/prefs";
 import { playMoveSound, unlockAudio, armAudioUnlock } from "@/lib/chess/sound";
+import { playHaptic } from "@/lib/chess/haptic";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
 import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
@@ -66,6 +67,8 @@ interface GameProps {
   selfId?: string;
   invite?: TableWire | null;
   aiLevel?: AiLevelId;
+  /** Seconds per side for online challenge clocks (0 = off). */
+  clockSec?: number;
 }
 
 export function Game(props: GameProps) {
@@ -95,7 +98,7 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
   }
 }
 
-function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight" }: GameProps) {
+function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight", clockSec = 0 }: GameProps) {
   const prefs = usePrefs();
   const [table, setTable] = useState<TableWire>(() => {
     if (invite?.w) return { w: invite.w, b: invite.b, board: invite.board };
@@ -136,6 +139,32 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const incomingPly = useRef(false);
   handoffRef.current = handoff;
 
+  const [clockLimit, setClockLimit] = useState(() => (mode === "online" && clockSec > 0 ? clockSec : 0));
+  const [clocks, setClocks] = useState(() => {
+    const ms = clockLimit * 1000;
+    return { w: ms, b: ms };
+  });
+  const clocksRef = useRef(clocks);
+  clocksRef.current = clocks;
+
+  // Rebuild piece sprites from FEN on resize — kills stray off-board ghosts.
+  useEffect(() => {
+    let t = 0;
+    const sync = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        setPieces(piecesFromFen(chessRef.current.fen()));
+      }, 80);
+    };
+    window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", sync);
+    };
+  }, []);
+
   const p2p = useRoomBus({
     room: room ?? "local",
     name: host ? wFaction.name : bFaction.name,
@@ -160,6 +189,35 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setParade(true);
   }, [mode, seated]);
 
+  // Challenge clocks tick only while handoff is idle (turn has been pushed).
+  useEffect(() => {
+    if (!clockLimit || parade || ending || phase === "over") return;
+    if (handoff !== "idle") return;
+    if (!seated) return;
+    const side = turn;
+    const id = window.setInterval(() => {
+      setClocks((c) => {
+        const next = Math.max(0, c[side] - 250);
+        if (next === 0 && c[side] > 0) {
+          window.setTimeout(() => {
+            const winner: Side = side === "w" ? "b" : "w";
+            setEnding({ kind: "resign", winner });
+            setPhase("over");
+            if (side === mySide) {
+              try {
+                p2p.send({ t: "resign" } satisfies NetMsg);
+              } catch {
+                /* */
+              }
+            }
+          }, 0);
+        }
+        return { ...c, [side]: next };
+      });
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [clockLimit, parade, ending, phase, handoff, turn, seated, mySide, p2p]);
+
   useEffect(() => {
     if (mode === "local") return;
     return p2p.onMessage((_from, data, channel) => {
@@ -181,6 +239,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       boardId: table.board,
       wFaction: table.w,
       bFaction: table.b,
+      ...(clockLimit ? { clockSec: clockLimit, clocks: clocksRef.current } : {}),
     };
     p2p.send(msg);
   }, [connectedPeer?.id, host, mode]); // eslint-disable-line
@@ -255,6 +314,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         wFaction: table.w,
         bFaction: table.b,
         boardId: table.board,
+        ...(clockLimit ? { clocks: clocksRef.current } : {}),
       };
       p2p.send(msg);
     };
@@ -331,13 +391,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setPhase("animating");
     const kind = chess.isCheck() ? "check" : move.captured ? "capture" : "move";
     if (prefs.sound) playMoveSound(kind);
+    playHaptic(kind === "check" ? "check" : kind === "capture" ? "capture" : "move", prefs.haptic);
     window.clearTimeout(impactTimer.current);
     setImpact({ square: to, kind });
     impactTimer.current = window.setTimeout(() => setImpact(null), 560);
     window.setTimeout(() => {
       snapshot(chess, move);
       if (mode === "local" && prefs.autoFlip) setOrientation(chess.turn());
-      if (chess.isGameOver() && prefs.sound) playMoveSound("end");
+      if (chess.isGameOver()) {
+        if (prefs.sound) playMoveSound("end");
+        playHaptic("end", prefs.haptic);
+      }
       if (mode === "local" && chess.isCheck() && !chess.isCheckmate()) {
         flash({ kind: "check", title: "Check", body: "The king is under fire." }, 2800);
       }
@@ -366,6 +430,12 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       setEnding(endingOf(chess));
       setPhase("idle");
       applyTheme(msg.setId, msg.boardId, msg.wFaction, msg.bFaction);
+      if (typeof msg.clockSec === "number" && msg.clockSec > 0) {
+        setClockLimit(msg.clockSec);
+        setClocks(msg.clocks ?? { w: msg.clockSec * 1000, b: msg.clockSec * 1000 });
+      } else if (msg.clocks) {
+        setClocks(msg.clocks);
+      }
       return;
     }
     if (msg.t === "move") {
@@ -428,6 +498,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       setPhase(end ? "over" : "idle");
       setHandoff("idle");
       if (msg.from && msg.to) setLastMove({ from: msg.from as Square, to: msg.to as Square });
+      if (msg.clocks) setClocks(msg.clocks);
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
       p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
       if (end) {
@@ -609,7 +680,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   async function shareRoom() {
     if (!room) return;
-    const url = `${window.location.origin}/r/${room}?${tableQuery(table)}`;
+    const q = new URLSearchParams(tableQuery(table));
+    if (clockLimit > 0) q.set("clock", String(clockLimit));
+    const url = `${window.location.origin}/r/${room}?${q.toString()}`;
     const text = table.b
       ? `${wFaction.name} vs ${bFaction.name} — join ${room}`
       : `${wFaction.name} sits white. Pick your host and join ${room}`;
@@ -683,22 +756,23 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                 ? "Send finish"
                 : "End turn"}
           </Button>
-        ) : null}
-        <button
-          type="button"
-          className="flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-bg/50"
-          onClick={() => {
-            const next = !prefs.sound;
-            prefs.setSound(next);
-            if (next) {
-              unlockAudio();
-              playMoveSound("test");
-            }
-          }}
-          aria-label="Sound"
-        >
-          {prefs.sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-        </button>
+        ) : (
+          <button
+            type="button"
+            className="flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-bg/50"
+            onClick={() => {
+              const next = !prefs.sound;
+              prefs.setSound(next);
+              if (next) {
+                unlockAudio();
+                playMoveSound("test");
+              }
+            }}
+            aria-label="Sound"
+          >
+            {prefs.sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+          </button>
+        )}
         <button
           type="button"
           className="flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-bg/50"
@@ -718,6 +792,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <button type="button" className="inline-flex items-center gap-1 text-ivory" onClick={shareRoom}>
             <Share2 className="size-3.5" /> Share
           </button>
+        </div>
+      )}
+
+      {clockLimit > 0 && seated && (
+        <div className="relative z-10 flex shrink-0 items-center justify-center gap-6 px-4 py-1 text-sm tabular-nums">
+          <span className={cn(turn === "w" && handoff === "idle" ? "text-gold" : "text-muted")}>
+            {wFaction.name} {formatClock(clocks.w)}
+          </span>
+          <span className={cn(turn === "b" && handoff === "idle" ? "text-ember" : "text-muted")}>
+            {bFaction.name} {formatClock(clocks.b)}
+          </span>
         </div>
       )}
 
@@ -760,7 +845,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                     ? ending
                       ? "Sending the finish…"
                       : "Handing the board across…"
-                    : "End turn is top-right when you’re ready."}
+                    : "Ready to send"}
                 </p>
                 <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
                   <Undo2 className="size-4" /> Undo
@@ -1079,6 +1164,32 @@ function SettingsSheet({
           />
         </label>
 
+        <label className="mt-4 flex items-center justify-between text-sm">
+          Sound
+          <input
+            type="checkbox"
+            checked={prefs.sound}
+            onChange={(e) => {
+              prefs.setSound(e.target.checked);
+              if (e.target.checked) {
+                unlockAudio();
+                playMoveSound("test");
+              }
+            }}
+            className="size-4 accent-ivory"
+          />
+        </label>
+
+        <label className="mt-4 flex items-center justify-between text-sm">
+          Haptics
+          <input
+            type="checkbox"
+            checked={prefs.haptic}
+            onChange={(e) => prefs.setHaptic(e.target.checked)}
+            className="size-4 accent-ivory"
+          />
+        </label>
+
         <Button className="mt-6 w-full" onClick={onClose}>
           Done
         </Button>
@@ -1119,6 +1230,13 @@ function FactionRow({
       })}
     </div>
   );
+}
+
+function formatClock(ms: number) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
 function endTitle(end: Ending, heaven: string, hell: string) {
