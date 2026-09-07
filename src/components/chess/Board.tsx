@@ -116,7 +116,6 @@ export function Board({
           />
           <div
             className="board-3d"
-            onPointerDown={onPointer}
             onClick={onPointer}
           >
             <span ref={tl} data-corner="tl" className="pointer-events-none absolute left-0 top-0 size-[2px] opacity-0" />
@@ -144,10 +143,6 @@ export function Board({
                       aria-label={sq}
                       className={cn("relative min-h-0 min-w-0 overflow-hidden p-0", isCheck && "check-pulse")}
                       onClick={(e) => {
-                        e.stopPropagation();
-                        if (!disabled) onSquare(sq);
-                      }}
-                      onPointerDown={(e) => {
                         e.stopPropagation();
                         if (!disabled) onSquare(sq);
                       }}
