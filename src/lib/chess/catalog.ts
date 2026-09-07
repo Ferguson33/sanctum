@@ -60,38 +60,41 @@ export interface BoardTheme {
 }
 
 const SANCTUM_SCALE = {
-  scale: { width: 0.84, height: 1.02 },
-  typeScale: { r: 1.0, n: 1.04, q: 1.0, k: 1.06, b: 0.96, p: 0.62 } as Partial<Record<PieceType, number>>,
+  scale: { width: 0.88, height: 1.08 },
+  typeScale: { r: 1.02, n: 1.06, q: 1.02, k: 1.08, b: 0.98, p: 0.82 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
 const GROVE_SCALE = {
-  scale: { width: 0.86, height: 1.04 },
-  typeScale: { r: 1.08, n: 1.18, q: 1.02, k: 0.96, b: 1.0, p: 0.58 } as Partial<Record<PieceType, number>>,
+  scale: { width: 0.9, height: 1.1 },
+  typeScale: { r: 1.1, n: 1.16, q: 1.04, k: 1.0, b: 1.02, p: 0.8 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
 const CANON_SCALE = {
-  scale: { width: 0.9, height: 0.9 },
-  typeScale: { p: 0.68, n: 1.02, b: 0.98, r: 0.96, q: 1.0, k: 1.04 } as Partial<Record<PieceType, number>>,
+  scale: { width: 0.94, height: 0.94 },
+  typeScale: { p: 0.82, n: 1.04, b: 1.0, r: 0.98, q: 1.02, k: 1.06 } as Partial<Record<PieceType, number>>,
   fit: "glyph" as const,
 };
 
+/** Atlantis + Aliens — pawns were ~0.54 and nearly invisible on phone. */
 const PAGEANT_SCALE = {
-  scale: { width: 0.88, height: 1.06 },
-  typeScale: { r: 1.14, n: 1.22, q: 1.06, k: 1.12, b: 1.0, p: 0.54 } as Partial<Record<PieceType, number>>,
+  scale: { width: 0.94, height: 1.12 },
+  typeScale: { r: 1.12, n: 1.16, q: 1.08, k: 1.12, b: 1.04, p: 0.96 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
+/** Samurai / Bakufu */
 const BAKUFU_SCALE = {
-  scale: { width: 0.96, height: 1.14 },
-  typeScale: { r: 1.08, n: 1.18, q: 1.12, k: 1.18, b: 1.08, p: 0.82 } as Partial<Record<PieceType, number>>,
+  scale: { width: 1.0, height: 1.18 },
+  typeScale: { r: 1.1, n: 1.16, q: 1.12, k: 1.16, b: 1.1, p: 1.02 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
+/** Animal Kingdom — knight (eagle) was oversized vs the rest. */
 const KINGDOM_SCALE = {
-  scale: { width: 0.92, height: 1.12 },
-  typeScale: { r: 1.10, n: 1.12, q: 1.16, k: 1.16, b: 1.06, p: 0.74 } as Partial<Record<PieceType, number>>,
+  scale: { width: 0.94, height: 1.14 },
+  typeScale: { r: 1.1, n: 0.94, q: 1.14, k: 1.14, b: 1.06, p: 0.88 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
