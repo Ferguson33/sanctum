@@ -375,7 +375,7 @@
 }
 
 .parade-truck {
-  width: min(180vw, 1400px);
+  width: min(112vw, 1100px);
   transform-style: preserve-3d;
   animation: paradeTruck 5.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -462,10 +462,10 @@
 
 @keyframes paradeTruck {
   0% {
-    transform: translateX(24%) translateZ(120px) rotateY(-10deg) scale(1.62);
+    transform: translateX(8%) translateZ(40px) rotateY(-6deg) scale(1.06);
   }
   100% {
-    transform: translateX(-10%) translateZ(0) rotateY(8deg) scale(1.12);
+    transform: translateX(-4%) translateZ(0) rotateY(4deg) scale(0.92);
   }
 }
 
@@ -491,25 +491,28 @@
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  gap: 4vw;
-  padding-bottom: 22vh;
+  gap: clamp(0.4rem, 3vw, 1.25rem);
+  padding: max(4.5rem, env(safe-area-inset-top)) 3vw max(7.5rem, calc(env(safe-area-inset-bottom) + 5.5rem));
+  box-sizing: border-box;
   animation: paradeClash 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .parade-clash-k {
-  height: min(52vh, 420px);
+  height: min(46dvh, 380px);
   width: auto;
+  max-width: min(44vw, 280px);
+  max-height: calc(100dvh - 14rem);
   object-fit: contain;
-  object-position: bottom;
+  object-position: bottom center;
   filter: drop-shadow(0 24px 32px rgba(0, 0, 0, 0.7));
 }
 
 @keyframes paradeClash {
   0% {
     opacity: 0;
-    transform: scale(1.12);
+    transform: scale(1);
   }
   100% {
     opacity: 1;
