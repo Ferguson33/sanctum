@@ -93,6 +93,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...SANCTUM_SCALE,
+    intro: "/sets/sanctum/intro-solace.mp4",
   },
   {
     id: "evil",
