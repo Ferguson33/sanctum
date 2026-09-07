@@ -28,6 +28,7 @@ import {
   getSet,
   otherFaction,
   tableName,
+  PIECE_LABEL,
   type PieceType,
   type Side,
 } from "@/lib/chess/catalog";
@@ -58,7 +59,11 @@ const PROMOTE: PieceType[] = ["q", "r", "b", "n"];
 
 type Phase = "idle" | "selected" | "promotion" | "animating" | "over";
 type Handoff = "idle" | "ready" | "sending" | "theirs";
-type Callout = { kind: "turn" | "check" | "moved" | "sat"; title: string; body: string } | null;
+type Callout = {
+  kind: "turn" | "check" | "moved" | "sat" | "taken";
+  title: string;
+  body: string;
+} | null;
 
 interface GameProps {
   mode: "local" | "online" | "ai";
@@ -119,7 +124,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [selected, setSelected] = useState<Square | null>(null);
   const [legal, setLegal] = useState<Square[]>([]);
   const [caps, setCaps] = useState<Square[]>([]);
-  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square; captured?: boolean } | null>(null);
+  const [freshCap, setFreshCap] = useState<{ side: Side; type: PieceType; key: number } | null>(null);
+  const freshCapTimer = useRef(0);
   const [impact, setImpact] = useState<{ square: Square; kind: "move" | "capture" | "check" } | null>(null);
   const impactTimer = useRef<number>(0);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -374,7 +381,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       setPhase("idle");
     }
     if (move) {
-      setLastMove({ from: move.from, to: move.to });
+      setLastMove({ from: move.from, to: move.to, captured: Boolean(move.captured) });
       setHistory((h) => [...h, move]);
     }
   }
@@ -394,13 +401,40 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     playHaptic(kind === "check" ? "check" : kind === "capture" ? "capture" : "move", prefs.haptic);
     window.clearTimeout(impactTimer.current);
     setImpact({ square: to, kind });
-    impactTimer.current = window.setTimeout(() => setImpact(null), 560);
+    impactTimer.current = window.setTimeout(() => setImpact(null), kind === "capture" ? 1100 : 560);
+
+    // Mover was the side that just moved (turn already flipped in chess.js).
+    const mover: Side = chess.turn() === "w" ? "b" : "w";
+    const loser: Side = mover === "w" ? "b" : "w";
+    if (move.captured) {
+      window.clearTimeout(freshCapTimer.current);
+      setFreshCap({ side: loser, type: move.captured, key: Date.now() });
+      freshCapTimer.current = window.setTimeout(() => setFreshCap(null), 2800);
+    }
+
     window.setTimeout(() => {
       snapshot(chess, move);
       if (mode === "local" && prefs.autoFlip) setOrientation(chess.turn());
       if (chess.isGameOver()) {
         if (prefs.sound) playMoveSound("end");
         playHaptic("end", prefs.haptic);
+      }
+      if (move.captured && !chess.isGameOver()) {
+        const label = PIECE_LABEL[move.captured];
+        const lostMine = mode === "local" || loser === mySide;
+        if (lostMine) {
+          flash(
+            {
+              kind: "taken",
+              title: mode === "local" ? `${label} taken` : "They took a piece",
+              body:
+                mode === "local"
+                  ? `${label} left the table.`
+                  : `Your ${label.toLowerCase()} is gone.`,
+            },
+            3200,
+          );
+        }
       }
       if (mode === "local" && chess.isCheck() && !chess.isCheckmate()) {
         flash({ kind: "check", title: "Check", body: "The king is under fire." }, 2800);
@@ -806,7 +840,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </div>
       )}
 
-      <Captured row={orientation === "w" ? hellCaps : heavenCaps} faction={orientation === "w" ? bFaction : wFaction} />
+      <Captured
+        row={orientation === "w" ? hellCaps : heavenCaps}
+        faction={orientation === "w" ? bFaction : wFaction}
+        fresh={freshCap && freshCap.side === (orientation === "w" ? "b" : "w") ? freshCap : null}
+      />
 
       <div className="relative z-10 min-h-0 flex-1 overflow-visible px-1">
         <Board
@@ -833,7 +871,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         />
       </div>
 
-      <Captured row={orientation === "w" ? heavenCaps : hellCaps} faction={orientation === "w" ? wFaction : bFaction} />
+      <Captured
+        row={orientation === "w" ? heavenCaps : hellCaps}
+        faction={orientation === "w" ? wFaction : bFaction}
+        fresh={freshCap && freshCap.side === (orientation === "w" ? "w" : "b") ? freshCap : null}
+      />
 
       <footer className="relative z-10 flex shrink-0 items-center gap-2 bg-gradient-to-t from-bg via-bg/80 to-transparent px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1">
         {mode === "online" ? (
@@ -933,15 +975,21 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             <p
               className={cn(
                 "text-xs uppercase tracking-[0.28em]",
-                callout.kind === "check" ? "text-ember" : "text-gold",
+                callout.kind === "check" || callout.kind === "taken" ? "text-ember" : "text-gold",
               )}
             >
-              {callout.kind === "check" ? "The king" : callout.kind === "moved" ? "Across the table" : "The table"}
+              {callout.kind === "check"
+                ? "The king"
+                : callout.kind === "taken"
+                  ? "Fallen"
+                  : callout.kind === "moved"
+                    ? "Across the table"
+                    : "The table"}
             </p>
             <p
               className={cn(
                 "font-display mt-1 text-5xl leading-none",
-                callout.kind === "check" ? "text-ember" : "text-ivory",
+                callout.kind === "check" || callout.kind === "taken" ? "text-ember" : "text-ivory",
               )}
             >
               {callout.title}
@@ -1030,20 +1078,25 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 function Captured({
   row,
   faction,
+  fresh,
 }: {
   row: PieceType[];
   faction: Faction;
+  fresh: { side: Side; type: PieceType; key: number } | null;
 }) {
   return (
-    <div className="relative z-10 flex h-8 shrink-0 items-center gap-1 overflow-x-auto px-3">
-      {row.map((t, i) => (
-        <img
-          key={`${t}-${i}`}
-          src={factionSrc(faction, t)}
-          alt=""
-          className={cn("h-7 w-auto opacity-90", i === row.length - 1 && "cap-in")}
-        />
-      ))}
+    <div className="relative z-10 flex min-h-9 shrink-0 items-center gap-1.5 overflow-x-auto px-3 py-0.5">
+      {row.map((piece, i) => {
+        const isFresh = Boolean(fresh && i === row.length - 1 && piece === fresh.type);
+        return (
+          <img
+            key={`${piece}-${i}-${isFresh ? fresh!.key : "s"}`}
+            src={factionSrc(faction, piece)}
+            alt={isFresh ? `${PIECE_LABEL[piece]} taken` : ""}
+            className={cn("h-8 w-auto opacity-90", isFresh ? "cap-fresh" : i === row.length - 1 && "cap-in")}
+          />
+        );
+      })}
     </div>
   );
 }
