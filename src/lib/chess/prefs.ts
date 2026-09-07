@@ -17,6 +17,7 @@ export interface Prefs {
   boardId: string;
   tilt: number;
   sound: boolean;
+  haptic: boolean;
   autoFlip: boolean;
   setSetId: (setId: string) => void;
   setWFaction: (id: string) => void;
@@ -24,6 +25,7 @@ export interface Prefs {
   setBoardId: (boardId: string) => void;
   setTilt: (tilt: number) => void;
   setSound: (sound: boolean) => void;
+  setHaptic: (haptic: boolean) => void;
   setAutoFlip: (autoFlip: boolean) => void;
 }
 
@@ -36,6 +38,7 @@ export const usePrefs = create<Prefs>()(
       boardId: DEFAULT_BOARD_ID,
       tilt: 0,
       sound: true,
+      haptic: true,
       autoFlip: false,
       setSetId: (setId) => {
         const s = getSet(setId);
@@ -53,8 +56,9 @@ export const usePrefs = create<Prefs>()(
       setBoardId: (boardId) => set({ boardId }),
       setTilt: (tilt) => set({ tilt }),
       setSound: (sound) => set({ sound }),
+      setHaptic: (haptic) => set({ haptic }),
       setAutoFlip: (autoFlip) => set({ autoFlip }),
     }),
-    { name: "sanctum-prefs-v5" },
+    { name: "sanctum-prefs-v6" },
   ),
 );

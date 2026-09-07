@@ -19,19 +19,31 @@ function Home() {
   const prefs = usePrefs();
   const [code, setCode] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
+  const [challengeOpen, setChallengeOpen] = useState(false);
+  const CLOCK_OPTS: { sec: number; label: string; blurb: string }[] = [
+    { sec: 0, label: "No clock", blurb: "Open table" },
+    { sec: 180, label: "3 min", blurb: "Each side" },
+    { sec: 300, label: "5 min", blurb: "Each side" },
+    { sec: 600, label: "10 min", blurb: "Each side" },
+  ];
 
   function playAi(lvl: AiLevelId) {
     warmOpponent();
     void nav({ to: "/play", search: { vs: "ai", lvl } });
   }
 
-  function challenge() {
+  function challenge(clockSec: number) {
     const room = makeRoomCode();
     localStorage.setItem(hostKey(room), "1");
     void nav({
       to: "/r/$code",
       params: { code: room },
-      search: { w: prefs.wFaction, board: prefs.boardId, open: "1" },
+      search: {
+        w: prefs.wFaction,
+        board: prefs.boardId,
+        open: "1",
+        ...(clockSec > 0 ? { clock: String(clockSec) } : {}),
+      },
     });
   }
 
@@ -82,9 +94,29 @@ function Home() {
                 ))}
               </div>
             )}
-            <Button size="lg" variant="ghost" className="w-full" onClick={challenge}>
+            <Button
+              size="lg"
+              variant="ghost"
+              className="w-full"
+              onClick={() => setChallengeOpen((v) => !v)}
+            >
               <Smartphone className="size-4" /> Challenge a phone
             </Button>
+            {challengeOpen && (
+              <div className="grid grid-cols-2 gap-2">
+                {CLOCK_OPTS.map((c) => (
+                  <button
+                    key={c.sec}
+                    type="button"
+                    onClick={() => challenge(c.sec)}
+                    className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
+                  >
+                    <span className="font-display block text-lg leading-none">{c.label}</span>
+                    <span className="mt-1 block text-xs text-muted">{c.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <form onSubmit={join} className="flex gap-2">
               <input
                 value={code}

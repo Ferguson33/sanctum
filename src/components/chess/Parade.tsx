@@ -91,7 +91,7 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
         )}
       </div>
       <button type="button" className="parade-skip" onClick={onDone}>
-        Skip
+        Skip intro
       </button>
     </div>
   );

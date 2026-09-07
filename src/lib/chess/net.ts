@@ -4,7 +4,16 @@ export type TableWire = { w: string; b: string; board: string };
 
 export type NetMsg =
   | { t: "hello"; host: boolean; name: string }
-  | { t: "sync"; fen: string; setId: string; boardId: string; wFaction?: string; bFaction?: string }
+  | {
+      t: "sync";
+      fen: string;
+      setId: string;
+      boardId: string;
+      wFaction?: string;
+      bFaction?: string;
+      clockSec?: number;
+      clocks?: { w: number; b: number };
+    }
   | {
       t: "move";
       from: string;
@@ -22,6 +31,7 @@ export type NetMsg =
       wFaction?: string;
       bFaction?: string;
       boardId?: string;
+      clocks?: { w: number; b: number };
     }
   | { t: "have"; ply: number }
   | { t: "resign" }

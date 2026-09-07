@@ -131,7 +131,8 @@ export function piecesFromFen(fen: string): LivePiece[] {
       const key = `${p.color}-${p.type}`;
       seen[key] = (seen[key] ?? 0) + 1;
       out.push({
-        id: `${key}-${seen[key]}-${square}`,
+        // Stable id (no square) so resize/rebuild doesn't orphan tweens.
+        id: `${key}-${seen[key]}`,
         type: p.type as PieceType,
         color: p.color as Side,
         square,
