@@ -667,7 +667,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
       <Captured row={orientation === "w" ? hellCaps : heavenCaps} faction={orientation === "w" ? bFaction : wFaction} />
 
-      <div className="relative z-10 min-h-0 flex-1 px-1">
+      <div className="relative z-10 min-h-0 flex-1 overflow-visible px-1">
         <Board
           fen={fen}
           pieces={pieces}

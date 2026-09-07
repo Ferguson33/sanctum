@@ -304,13 +304,13 @@ function PieceView({
   const vf = orientation === "w" ? fi : 7 - fi;
   const vr = orientation === "w" ? 7 - ri : ri;
   const extra = faction.typeScale?.[piece.type as PieceType] ?? 1;
-  const width = faction.scale.width * extra * 100;
   const glyph = faction.fit === "glyph";
+  const sized = (glyph ? faction.scale.width : faction.scale.height) * extra * 100;
   const label = `${faction.name} ${PIECE_LABEL[piece.type]}`;
 
   return (
     <div
-      className="piece-slide absolute flex items-end justify-center"
+      className="piece-slide absolute flex items-end justify-center overflow-visible"
       style={{
         left: `${vf * 12.5}%`,
         top: `${vr * 12.5}%`,
@@ -349,15 +349,15 @@ function PieceView({
           }}
           className={cn(
             "block select-none",
-            glyph ? "piece-glyph h-[92%] w-auto object-contain" : "piece-statue h-[100%] w-auto object-contain object-bottom",
+            glyph ? "piece-glyph h-[92%] w-auto object-contain" : "piece-statue w-auto object-contain object-bottom",
             piece.color === "w" ? "is-white" : "is-black",
             selected && "brightness-110",
           )}
-          style={{
-            width: `${width}%`,
-            maxWidth: "none",
-            maxHeight: glyph ? "96%" : "108%",
-          }}
+          style={
+            glyph
+              ? { width: `${sized}%`, maxHeight: "96%" }
+              : { height: `${Math.min(sized, 128)}%`, width: "auto", maxWidth: "170%" }
+          }
         />
       </div>
     </div>
