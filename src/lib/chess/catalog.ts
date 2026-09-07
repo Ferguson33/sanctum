@@ -126,7 +126,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "b",
     ...GROVE_SCALE,
-    intro: "/sets/grove/intro-dwarves.mp4",
+    intro: "/sets/grove/intro-dwarves.mp4?v=3",
   },
   {
     id: "canon-ivory",
