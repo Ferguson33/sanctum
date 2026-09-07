@@ -202,6 +202,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...KINGDOM_SCALE,
+    intro: "/sets/kingdom/intro.mp4?v=1",
   },
 ];
 
