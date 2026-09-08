@@ -687,10 +687,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   }
 
   function ackHave(ply: number, force = false) {
-    if (!force && lastHavePly.current === ply) {
-      p2p.send({ t: "have", ply } satisfies NetMsg);
-      return;
-    }
+    if (!force && lastHavePly.current === ply) return;
     lastHavePly.current = ply;
     p2p.send({ t: "have", ply } satisfies NetMsg);
     window.setTimeout(() => {
@@ -1169,11 +1166,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <>
             {handoff === "ready" || handoff === "sending" ? (
               <>
-                <p className="min-w-0 flex-1 text-sm leading-snug text-muted text-pretty">
-                  {handoff === "ready" ? "You can still undo" : ""}
-                </p>
                 <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
                   <Undo2 className="size-4" /> Undo
+                </Button>
+                <Button
+                  size="sm"
+                  className="ml-auto"
+                  onClick={endTurn}
+                  disabled={handoff === "sending" && !sendStuck}
+                >
+                  <Send className="size-4" />
+                  {handoff === "sending" ? (sendStuck ? "Resend" : "Sending…") : ending ? "Send finish" : "End turn"}
                 </Button>
               </>
             ) : (

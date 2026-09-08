@@ -60,11 +60,19 @@ type Store = {
   rooms: Map<string, Envelope[]>;
 };
 
-const globalRef = globalThis as typeof globalThis & { __sanctumBus__?: Store };
+const globalRef = globalThis as typeof globalThis & {
+  __sanctumBus__?: Store;
+  __sanctumRemote__?: Map<string, Envelope[]>;
+};
 
 function store(): Store {
   globalRef.__sanctumBus__ ??= { seq: 1, rooms: new Map() };
   return globalRef.__sanctumBus__;
+}
+
+function remoteCache(): Map<string, Envelope[]> {
+  globalRef.__sanctumRemote__ ??= new Map();
+  return globalRef.__sanctumRemote__;
 }
 
 function topic(room: string) {
@@ -100,36 +108,50 @@ async function publishRemote(room: string, from: string, payload: unknown) {
 type NtfyMsg = { id?: string; time?: number; event?: string; message?: string };
 
 async function readRemote(room: string): Promise<Envelope[]> {
-  const res = await fetch(`${NTFY}/${topic(room)}/json?poll=1`, {
-    headers: { accept: "application/x-ndjson, application/json" },
-  });
-  if (!res.ok) throw new Error(`mailbox poll ${res.status}`);
-  const text = await res.text();
-  const out: Envelope[] = [];
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
-    let row: NtfyMsg;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      row = JSON.parse(line) as NtfyMsg;
-    } catch {
-      continue;
-    }
-    if (row.event && row.event !== "message") continue;
-    if (!row.message) continue;
-    try {
-      const inner = JSON.parse(row.message) as { from?: string; payload?: unknown };
-      if (!inner.from) continue;
-      out.push({
-        id: String(row.id ?? `t${row.time}`),
-        from: String(inner.from).slice(0, 64),
-        payload: inner.payload,
-        at: (row.time ?? 0) * 1000,
+      const res = await fetch(`${NTFY}/${topic(room)}/json?poll=1`, {
+        headers: { accept: "application/x-ndjson, application/json" },
       });
-    } catch {
-      continue;
+      if (res.status === 429) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+        lastErr = new Error("mailbox poll 429");
+        continue;
+      }
+      if (!res.ok) throw new Error(`mailbox poll ${res.status}`);
+      const text = await res.text();
+      const out: Envelope[] = [];
+      for (const line of text.split("\n")) {
+        if (!line.trim()) continue;
+        let row: NtfyMsg;
+        try {
+          row = JSON.parse(line) as NtfyMsg;
+        } catch {
+          continue;
+        }
+        if (row.event && row.event !== "message") continue;
+        if (!row.message) continue;
+        try {
+          const inner = JSON.parse(row.message) as { from?: string; payload?: unknown };
+          if (!inner.from) continue;
+          out.push({
+            id: String(row.id ?? `t${row.time}`),
+            from: String(inner.from).slice(0, 64),
+            payload: inner.payload,
+            at: (row.time ?? 0) * 1000,
+          });
+        } catch {
+          continue;
+        }
+      }
+      return out;
+    } catch (err) {
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
-  return out;
+  throw lastErr instanceof Error ? lastErr : new Error("mailbox poll failed");
 }
 
 function tableFrom(envs: Envelope[]): TableWire | undefined {
@@ -158,11 +180,19 @@ function tableFrom(envs: Envelope[]): TableWire | undefined {
 }
 
 async function loadRoom(room: string): Promise<Envelope[]> {
+  const cache = remoteCache();
   try {
     const remote = await readRemote(room);
-    if (remote.length) return remote;
+    if (remote.length) {
+      cache.set(room, remote);
+      return remote;
+    }
+    const hit = cache.get(room);
+    if (hit?.length) return hit;
   } catch (err) {
-    console.warn("[rtc] remote mailbox missed, using local log", err);
+    console.warn("[rtc] remote mailbox missed, using last good / local log", err);
+    const hit = cache.get(room);
+    if (hit?.length) return hit;
   }
   return store().rooms.get(room) ?? [];
 }

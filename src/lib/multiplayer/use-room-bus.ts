@@ -117,8 +117,8 @@ export function useRoomBus(options: Options): P2PRoomHandle {
       } catch {
         // next tick retries
       }
-      // Keep polls snappy — 1.4s + iOS timer throttle is how turns sit for a minute.
-      if (!closed.current) timer = setTimeout(() => void poll(), linkedRef.current ? 550 : 400);
+      // 1.4s linked / 0.7s waiting — faster than this 429s ntfy.sh and End-turn never lands.
+      if (!closed.current) timer = setTimeout(() => void poll(), linkedRef.current ? 1400 : 700);
     };
 
     const hello = async () => {
@@ -134,7 +134,6 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     const wake = () => {
       if (closed.current) return;
       if (document.visibilityState !== "visible") return;
-      void hello();
       void poll();
     };
 
@@ -147,7 +146,7 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     }, 3000);
     const slow = setInterval(() => {
       if (linkedRef.current) void hello();
-    }, 12_000);
+    }, 20_000);
     return () => {
       closed.current = true;
       if (timer) clearTimeout(timer);
