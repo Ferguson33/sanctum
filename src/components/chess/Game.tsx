@@ -191,7 +191,10 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const mySide: Side = myColor === "b" ? "b" : "w";
   const myFaction = mySide === "b" ? bFaction : wFaction;
   const theirFaction = mySide === "b" ? wFaction : bFaction;
-  const skipParade = useCallback(() => setParade(false), []);
+  const skipParade = useCallback(() => {
+    unlockAudio();
+    setParade(false);
+  }, []);
   const [draftBlack, setDraftBlack] = useState(() => otherFaction(table.w, prefs.bFaction));
 
   useEffect(() => {
@@ -1274,21 +1277,26 @@ function SettingsSheet({
           />
         </label>
 
-        <label className="mt-4 flex items-center justify-between text-sm">
-          Sound
-          <input
-            type="checkbox"
-            checked={prefs.sound}
-            onChange={(e) => {
-              prefs.setSound(e.target.checked);
-              if (e.target.checked) {
-                unlockAudio();
-                playMoveSound("test");
-              }
-            }}
-            className="size-4 accent-ivory"
-          />
-        </label>
+        <div className="mt-4">
+          <label className="flex items-center justify-between text-sm">
+            Sound
+            <input
+              type="checkbox"
+              checked={prefs.sound}
+              onChange={(e) => {
+                prefs.setSound(e.target.checked);
+                if (e.target.checked) {
+                  unlockAudio();
+                  playMoveSound("test");
+                }
+              }}
+              className="size-4 accent-ivory"
+            />
+          </label>
+          <p className="mt-1 text-xs text-muted text-pretty">
+            Tap the speaker in the header to hear a test. On iPhone, turn the Ring/Silent switch off silent or the table stays quiet.
+          </p>
+        </div>
 
         <label className="mt-4 flex items-center justify-between text-sm">
           Haptics
