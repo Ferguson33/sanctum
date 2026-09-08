@@ -18,14 +18,10 @@ import { Board } from "@/components/chess/Board";
 import { ArmyPick } from "@/components/chess/ArmyPick";
 import { Parade } from "@/components/chess/Parade";
 import {
-  BOARD_THEMES,
-  FACTIONS,
-  PIECE_SETS,
   type Faction,
   factionSrc,
   getBoard,
   getFaction,
-  getSet,
   otherFaction,
   tableName,
   PIECE_LABEL,
@@ -1052,17 +1048,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </div>
       )}
 
-      {settings && (
-        <SettingsSheet
-          onClose={() => setSettings(false)}
-          onTheme={(setId, boardId, w, b) => {
-            applyTheme(setId, boardId, w, b);
-            if (mode === "online") {
-              p2p.send({ t: "theme", setId, boardId, wFaction: w, bFaction: b } satisfies NetMsg);
-            }
-          }}
-        />
-      )}
+      {settings && <SettingsSheet onClose={() => setSettings(false)} mode={mode} />}
 
       {mode === "online" && !seated && host && (
         <div className="absolute inset-0 z-40 flex items-end justify-center bg-bg/70 p-4 pb-10">
@@ -1153,121 +1139,24 @@ function Captured({
 
 function SettingsSheet({
   onClose,
-  onTheme,
+  mode,
 }: {
   onClose: () => void;
-  onTheme: (setId: string, boardId: string, wFaction: string, bFaction: string) => void;
+  mode: "local" | "online" | "ai";
 }) {
   const prefs = usePrefs();
-  const paired = prefs.wFaction === getSet(prefs.setId).w && prefs.bFaction === getSet(prefs.setId).b;
 
   return (
     <div className="absolute inset-0 z-40 flex items-end bg-bg/60" onClick={onClose}>
       <div
-        className="max-h-[80dvh] w-full overflow-y-auto rounded-t-[28px] border border-border bg-surface p-5 shadow-[0_-24px_60px_rgba(0,0,0,.55)]"
+        className="w-full rounded-t-[28px] border border-border bg-surface p-5 shadow-[0_-24px_60px_rgba(0,0,0,.55)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-border" />
-        <p className="font-display text-2xl">Table</p>
-        <p className="mt-1 text-sm text-muted">Pick a pairing, or mix the armies. Rules stay the same.</p>
+        <p className="font-display text-2xl">Settings</p>
+        <p className="mt-1 text-sm text-muted">Armies and boards are picked before the match.</p>
 
-        <p className="mt-5 text-xs uppercase tracking-[0.18em] text-muted">Pairing</p>
-        <div className="mt-2 grid gap-2">
-          {PIECE_SETS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => {
-                prefs.setSetId(s.id);
-                onTheme(s.id, prefs.boardId, s.w, s.b);
-              }}
-              className={cn(
-                "flex items-center gap-3 rounded-[16px] border px-3 py-3 text-left",
-                paired && prefs.setId === s.id ? "border-ivory bg-surface-2" : "border-border",
-              )}
-            >
-              <img src={factionSrc(getFaction(s.w), "k")} alt="" className="h-12 w-auto" />
-              <img src={factionSrc(getFaction(s.b), "k")} alt="" className="h-12 w-auto" />
-              <span>
-                <span className="block font-medium">{s.name}</span>
-                <span className="block text-xs text-muted">{s.tagline}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-5 text-xs uppercase tracking-[0.18em] text-muted">White plays as</p>
-        <FactionRow
-          selected={prefs.wFaction}
-          taken={prefs.bFaction}
-          onPick={(id) => {
-            prefs.setWFaction(id);
-            const p = usePrefs.getState();
-            onTheme(p.setId, p.boardId, p.wFaction, p.bFaction);
-          }}
-        />
-        <p className="mt-4 text-xs uppercase tracking-[0.18em] text-muted">Black plays as</p>
-        <FactionRow
-          selected={prefs.bFaction}
-          taken={prefs.wFaction}
-          onPick={(id) => {
-            prefs.setBFaction(id);
-            const p = usePrefs.getState();
-            onTheme(p.setId, p.boardId, p.wFaction, p.bFaction);
-          }}
-        />
-
-        <p className="mt-5 text-xs uppercase tracking-[0.18em] text-muted">Board</p>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {BOARD_THEMES.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => {
-                prefs.setBoardId(b.id);
-                onTheme(prefs.setId, b.id, prefs.wFaction, prefs.bFaction);
-              }}
-              className={cn(
-                "overflow-hidden rounded-[16px] border text-left",
-                prefs.boardId === b.id ? "border-ivory" : "border-border",
-              )}
-            >
-              <span
-                className="block h-14 w-full"
-                style={{
-                  backgroundColor: b.darkFill,
-                  backgroundImage: b.dark ? `url(${b.dark})` : undefined,
-                  backgroundSize: "cover",
-                }}
-              />
-              <span className="block px-2 py-2 text-xs font-medium">{b.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <label className="mt-5 block text-xs uppercase tracking-[0.18em] text-muted">
-          Tilt {prefs.tilt}° — {prefs.tilt === 0 ? "flat, full board" : "table"}
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={28}
-          value={prefs.tilt}
-          onChange={(e) => prefs.setTilt(Number(e.target.value))}
-          className="mt-2 w-full accent-ivory"
-        />
-
-        <label className="mt-4 flex items-center justify-between text-sm">
-          Flip the board each turn
-          <input
-            type="checkbox"
-            checked={prefs.autoFlip}
-            onChange={(e) => prefs.setAutoFlip(e.target.checked)}
-            className="size-4 accent-ivory"
-          />
-        </label>
-
-        <div className="mt-4">
+        <div className="mt-5">
           <label className="flex items-center justify-between text-sm">
             Sound
             <input
@@ -1284,7 +1173,7 @@ function SettingsSheet({
             />
           </label>
           <p className="mt-1 text-xs text-muted text-pretty">
-            Tap the speaker in the header to hear a test. On iPhone, turn the Ring/Silent switch off silent or the table stays quiet.
+            On iPhone, turn Ring/Silent off silent or you won’t hear anything.
           </p>
         </div>
 
@@ -1298,44 +1187,22 @@ function SettingsSheet({
           />
         </label>
 
+        {mode === "local" && (
+          <label className="mt-4 flex items-center justify-between text-sm">
+            Flip board each turn
+            <input
+              type="checkbox"
+              checked={prefs.autoFlip}
+              onChange={(e) => prefs.setAutoFlip(e.target.checked)}
+              className="size-4 accent-ivory"
+            />
+          </label>
+        )}
+
         <Button className="mt-6 w-full" onClick={onClose}>
           Done
         </Button>
       </div>
-    </div>
-  );
-}
-
-function FactionRow({
-  selected,
-  taken,
-  onPick,
-}: {
-  selected: string;
-  taken?: string;
-  onPick: (id: string) => void;
-}) {
-  return (
-    <div className="mt-2 grid grid-cols-3 gap-2">
-      {FACTIONS.map((f) => {
-        const sat = taken === f.id;
-        return (
-          <button
-            key={f.id}
-            type="button"
-            disabled={sat}
-            onClick={() => onPick(f.id)}
-            className={cn(
-              "flex flex-col items-center rounded-[16px] border px-1 py-2",
-              sat && "cursor-not-allowed opacity-35",
-              !sat && selected === f.id ? "border-ivory bg-surface-2" : "border-border",
-            )}
-          >
-            <img src={factionSrc(f, "k")} alt="" className="h-12 w-auto" />
-            <span className="mt-1 text-[11px] font-medium leading-none">{sat ? "Taken" : f.name}</span>
-          </button>
-        );
-      })}
     </div>
   );
 }
