@@ -135,6 +135,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [turn, setTurn] = useState<Side>("w");
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
+  const [sendStuck, setSendStuck] = useState(false);
   const [callout, setCallout] = useState<Callout>(null);
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
   const didParade = useRef(mode === "local" || mode === "ai");
@@ -317,6 +318,15 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   }, [linked, mode]); // eslint-disable-line
 
   useEffect(() => {
+    if (handoff !== "sending") {
+      setSendStuck(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSendStuck(true), 8000);
+    return () => window.clearTimeout(id);
+  }, [handoff]);
+
+  useEffect(() => {
     if (mode !== "online" || handoff !== "sending") return;
     const push = () => {
       const chess = chessRef.current;
@@ -335,8 +345,22 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       p2p.send(msg);
     };
     push();
-    const id = window.setInterval(push, 1400);
-    return () => window.clearInterval(id);
+    // Burst a couple early retries, then keep a steady drumbeat.
+    const t1 = window.setTimeout(push, 350);
+    const t2 = window.setTimeout(push, 900);
+    const id = window.setInterval(push, 500);
+    const onWake = () => {
+      if (document.visibilityState === "visible") push();
+    };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+    };
   }, [handoff, mode]); // eslint-disable-line
 
   const canMove = useCallback(
@@ -538,6 +562,13 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       }
       if (remotePly === localPly) {
         p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
+        window.setTimeout(() => {
+          try {
+            p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
+          } catch {
+            /* */
+          }
+        }, 280);
         if (handoffRef.current === "sending") setHandoff("theirs");
         return;
       }
@@ -558,6 +589,13 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (msg.clocks) setClocks(msg.clocks);
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
       p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
+      window.setTimeout(() => {
+        try {
+          p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
+        } catch {
+          /* */
+        }
+      }, 280);
       if (end) {
         if (prefs.sound) playMoveSound("end");
       } else if (prefs.sound) {
@@ -708,8 +746,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   function endTurn() {
     if (mode !== "online") return;
-    if (handoff !== "ready" && handoff !== "sending") return;
-    setHandoff("sending");
+    if (handoff === "ready") {
+      setSendStuck(false);
+      setHandoff("sending");
+      return;
+    }
+    // Stuck resend: bounce the effect so it fires a fresh burst.
+    if (handoff === "sending" && sendStuck) {
+      setSendStuck(false);
+      setHandoff("ready");
+      window.setTimeout(() => setHandoff("sending"), 40);
+    }
   }
 
   function playAi() {
@@ -794,7 +841,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
               : handoff === "ready"
                 ? "Tap End turn to send"
                 : handoff === "sending"
-                  ? "Sending…"
+                  ? sendStuck
+                    ? "Still sending — tap Resend"
+                    : "Sending…"
                   : handoff === "theirs"
                     ? `${sideToMove.name} to move`
                     : (
@@ -815,10 +864,10 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             size="sm"
             className="shrink-0"
             onClick={endTurn}
-            disabled={handoff === "sending"}
+            disabled={handoff === "sending" && !sendStuck}
           >
             <Send className="size-4" />
-            {handoff === "sending" ? "…" : ending ? "Send finish" : "End turn"}
+            {handoff === "sending" ? (sendStuck ? "Resend" : "…") : ending ? "Send finish" : "End turn"}
           </Button>
         ) : (
           <button
