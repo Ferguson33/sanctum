@@ -46,3 +46,6 @@ export type GameRow = {
 
 /** Live seat call window. Clock never starts until both have sat. */
 export const LIVE_ACCEPT_SEC = 300;
+
+/** After this with no ply, Drop is not a resign. */
+export const DROP_STALE_MS = 24 * 60 * 60 * 1000;

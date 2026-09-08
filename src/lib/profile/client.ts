@@ -156,3 +156,7 @@ export function deferGameLaterClient(room: string) {
   return gamesFetch<{ ok: boolean; game?: GameRow; error?: string }>("later", { room });
 }
 
+export function dropGameClient(room: string) {
+  return gamesFetch<{ ok: boolean; game?: GameRow; resigned?: boolean; error?: string }>("drop", { room });
+}
+

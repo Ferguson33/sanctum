@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { hashPin, verifyPin } from "./pin";
 import type { GameRow, MatchRow, Profile, Standing } from "./types";
-import { LIVE_ACCEPT_SEC } from "./types";
+import { DROP_STALE_MS, LIVE_ACCEPT_SEC } from "./types";
 
 export type { GameRow, MatchRow, Profile, Standing } from "./types";
-export { LIVE_ACCEPT_SEC } from "./types";
+export { LIVE_ACCEPT_SEC, DROP_STALE_MS } from "./types";
 
 type ProfileRow = {
   id: string;
@@ -486,6 +486,55 @@ export async function finishGame(
   const done = await getGameByRoom(code, profileId);
   if (!done) return { ok: false, error: "finish failed", status: 500 };
   return { ok: true, game: done };
+}
+
+function isStaleUpdated(updatedAt: string | Date | null | undefined): boolean {
+  if (!updatedAt) return true;
+  const t = new Date(updatedAt).getTime();
+  return !Number.isFinite(t) || Date.now() - t >= DROP_STALE_MS;
+}
+
+/**
+ * My games Drop. Unstarted or stale → clear, no W–L.
+ * A warm game with two seats → dropper resigns, the other seat gets the win.
+ */
+export async function dropGame(
+  profileId: string,
+  room: string,
+): Promise<
+  { ok: true; game: GameRow; resigned: boolean } | { ok: false; error: string; status?: number }
+> {
+  const code = room.trim().toUpperCase();
+  if (!code) return { ok: false, error: "invalid room", status: 400 };
+  const sql = await getSql();
+  const rows = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT} from sanctum.games where room = $1 limit 1`,
+    [code],
+  );
+  if (!rows.length) return { ok: false, error: "not found", status: 404 };
+  const row = rows[0];
+  if (row.white_profile_id !== profileId && row.black_profile_id !== profileId) {
+    return { ok: false, error: "not your game", status: 403 };
+  }
+
+  const started = (row.ply ?? 0) > 0 && Boolean(row.b_faction);
+  const peer =
+    row.white_profile_id === profileId ? row.black_profile_id : row.white_profile_id;
+  const resign =
+    started && !isStaleUpdated(row.updated_at) && Boolean(peer) && peer !== profileId;
+
+  const finished = await finishGame(profileId, room);
+  if (!finished.ok) return finished;
+  if (resign && peer) {
+    await recordMatch({
+      winnerId: peer,
+      loserId: profileId,
+      wFaction: row.w_faction,
+      bFaction: row.b_faction,
+      room: row.room,
+    });
+  }
+  return { ok: true, game: finished.game, resigned: Boolean(resign) };
 }
 
 /** Live pickup missed — keep the row as an untimed later challenge. */

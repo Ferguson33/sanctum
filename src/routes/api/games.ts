@@ -4,6 +4,7 @@ import { FACTIONS } from "@/lib/chess/catalog";
 import { getSessionProfileId } from "@/lib/profile/session";
 import {
   deferGameLater,
+  dropGame,
   finishGame,
   getGameByRoom,
   listMineGames,
@@ -40,6 +41,10 @@ const laterSchema = z.object({
   op: z.literal("later"),
   room: z.string().min(4).max(32),
 });
+const dropSchema = z.object({
+  op: z.literal("drop"),
+  room: z.string().min(4).max(32),
+});
 
 const postSchema = z.discriminatedUnion("op", [
   listMineSchema,
@@ -47,6 +52,7 @@ const postSchema = z.discriminatedUnion("op", [
   upsertSchema,
   finishSchema,
   laterSchema,
+  dropSchema,
 ]);
 
 function json(body: unknown, status = 200): Response {
@@ -130,6 +136,14 @@ async function handlePost(request: Request): Promise<Response> {
     const self = await requireSession();
     if (typeof self !== "string") return self;
     const result = await deferGameLater(self, msg.room);
+    if (!result.ok) return json({ error: result.error }, result.status ?? 400);
+    return json(result);
+  }
+
+  if (msg.op === "drop") {
+    const self = await requireSession();
+    if (typeof self !== "string") return self;
+    const result = await dropGame(self, msg.room);
     if (!result.ok) return json({ error: result.error }, result.status ?? 400);
     return json(result);
   }

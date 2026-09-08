@@ -4,11 +4,18 @@ import { ChevronLeft, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFaction, tableName } from "@/lib/chess/catalog";
 import { hostKey } from "@/lib/chess/net";
-import { fetchMyGames, finishGameClient, useProfile, type GameRow } from "@/lib/profile/client";
+import { dropGameClient, fetchMyGames, useProfile, type GameRow } from "@/lib/profile/client";
+import { DROP_STALE_MS } from "@/lib/profile/types";
 
 export const Route = createFileRoute("/games")({
   component: MyGamesPage,
 });
+
+function dropIsResign(g: GameRow): boolean {
+  if (g.ply <= 0 || !g.bFaction) return false;
+  const t = Date.parse(g.updatedAt);
+  return Number.isFinite(t) && Date.now() - t < DROP_STALE_MS;
+}
 
 function formatAgo(iso: string): string {
   const t = Date.parse(iso);
@@ -56,7 +63,7 @@ function MyGamesPage() {
   async function dropGame(game: GameRow) {
     setDropping(game.id);
     try {
-      await finishGameClient(game.room);
+      await dropGameClient(game.room);
       setGames((rows) => rows.filter((g) => g.id !== game.id));
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Could not drop that game");
@@ -108,7 +115,7 @@ function MyGamesPage() {
         </header>
 
         <p className="text-sm text-pretty text-muted">
-          Open duels and seat challenges. Drop one to clear the list — it does not count as a resign.
+          Open duels and seat challenges. Drop a dead table to clear it. A live match still counts as a resign.
         </p>
 
         {seatLoading || loading ? (
@@ -184,7 +191,13 @@ function MyGamesPage() {
                       disabled={dropping === g.id}
                       onClick={() => void dropGame(g)}
                     >
-                      {dropping === g.id ? "Dropping…" : "Drop — not a resign"}
+                      {dropping === g.id
+                        ? dropIsResign(g)
+                          ? "Resigning…"
+                          : "Dropping…"
+                        : dropIsResign(g)
+                          ? "Resign — they get the win"
+                          : "Drop — not a resign"}
                     </Button>
                   </div>
                 </li>
