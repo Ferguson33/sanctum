@@ -82,7 +82,8 @@ export function useRoomBus(options: Options): P2PRoomHandle {
       } catch {
         // next tick retries
       }
-      if (!closed.current) timer = setTimeout(() => void poll(), linkedRef.current ? 1400 : 700);
+      // Keep polls snappy — 1.4s + iOS timer throttle is how turns sit for a minute.
+      if (!closed.current) timer = setTimeout(() => void poll(), linkedRef.current ? 550 : 400);
     };
 
     const hello = async () => {
@@ -90,19 +91,30 @@ export function useRoomBus(options: Options): P2PRoomHandle {
       await publishMailbox(room, selfId, { t: "hello", id: selfId, name }).catch(() => {});
     };
 
+    const wake = () => {
+      if (closed.current) return;
+      if (document.visibilityState !== "visible") return;
+      void hello();
+      void poll();
+    };
+
     void hello();
     void poll();
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
     const beat = setInterval(() => {
       if (!linkedRef.current) void hello();
     }, 3000);
     const slow = setInterval(() => {
       if (linkedRef.current) void hello();
-    }, 15_000);
+    }, 12_000);
     return () => {
       closed.current = true;
       if (timer) clearTimeout(timer);
       clearInterval(beat);
       clearInterval(slow);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
     };
   }, [enabled, room, selfId, name]);
 
