@@ -137,7 +137,7 @@ export function tableFrom(envs: Envelope[]): TableWire | undefined {
   return undefined;
 }
 
-export async function sendWithRetry(room: string, from: string, payload: unknown, tries = 3) {
+export async function sendWithRetry(room: string, from: string, payload: unknown, tries = 4) {
   let last: unknown;
   for (let i = 0; i < tries; i++) {
     try {
@@ -145,7 +145,7 @@ export async function sendWithRetry(room: string, from: string, payload: unknown
       return;
     } catch (err) {
       last = err;
-      await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+      await new Promise((r) => setTimeout(r, 200 * (i + 1)));
     }
   }
   throw last instanceof Error ? last : new Error("mailbox send failed");
