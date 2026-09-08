@@ -14,10 +14,10 @@ export const AI_LEVELS: {
   movetime: number;
 }[] = [
   // Stockfish UCI_Elo floors ~1320 — Squire stays soft via heuristic + blunders, not the engine floor.
-  { id: "squire", name: "Squire", blurb: "Learning the table. Misses stuff.", elo: 900, skill: 0, limit: true, movetime: 80 },
+  { id: "squire", name: "Squire", blurb: "Easy. Makes mistakes.", elo: 900, skill: 0, limit: true, movetime: 80 },
   { id: "knight", name: "Knight", blurb: "Solid novice. Occasional gifts.", elo: 1320, skill: 2, limit: true, movetime: 320 },
   { id: "lord", name: "Lord", blurb: "Club sharp. Few free pieces.", elo: 1700, skill: 10, limit: true, movetime: 650 },
-  { id: "king", name: "King", blurb: "Full table.", elo: 3190, skill: 20, limit: false, movetime: 1200 },
+  { id: "king", name: "King", blurb: "Full strength.", elo: 3190, skill: 20, limit: false, movetime: 1200 },
 ];
 
 export function getAiLevel(id: string | undefined): (typeof AI_LEVELS)[number] {
