@@ -42,14 +42,14 @@ function SetupPage() {
   const showBlack = mode === "local" || mode === "ai";
 
   const title =
-    mode === "ai" ? "Play the table" : mode === "duel" ? "Start a duel" : "Pass and play";
+    mode === "ai" ? "Play AI" : mode === "duel" ? "Start a duel" : "Pass and play";
   const subtitle =
     mode === "ai"
-      ? `${getAiLevel(level).name}${clockSec ? ` · ${Math.round(clockSec / 60)} min` : " · open table"}`
+      ? `${getAiLevel(level).name}${clockSec ? ` · ${Math.round(clockSec / 60)} min` : " · no clock"}`
       : mode === "duel"
         ? clockSec
-          ? `${Math.round(clockSec / 60)} min each · you sit white`
-          : "Open table · you sit white"
+          ? `${Math.round(clockSec / 60)} min each · you play white`
+          : "No clock · you play white"
         : "Same phone · both armies";
 
   const cta =
@@ -110,10 +110,10 @@ function SetupPage() {
         </p>
 
         <ArmyPick
-          kicker={mode === "duel" ? "Your host (white)" : "Your host"}
+          kicker={mode === "duel" ? "Your army (white)" : "Your army"}
           note={
             mode === "duel"
-              ? "You sit white. They pick a different army on their phone."
+              ? "You play white. They pick a different army on their phone."
               : "Tap an army to inspect king through pawn."
           }
           selected={prefs.wFaction}
@@ -124,10 +124,10 @@ function SetupPage() {
         {showBlack && (
           <div className="mt-10">
             <ArmyPick
-              kicker={mode === "ai" ? "The table (black)" : "Other throne"}
+              kicker={mode === "ai" ? "AI army (black)" : "Their army"}
               note={
                 mode === "ai"
-                  ? `${getAiLevel(level).name} sits this host.`
+                  ? `${getAiLevel(level).name} plays this army.`
                   : "Second player on this phone."
               }
               selected={prefs.bFaction}

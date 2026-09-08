@@ -19,7 +19,7 @@ function Home() {
   const [panel, setPanel] = useState<Panel>(null);
   const [aiClock, setAiClock] = useState(300);
   const CLOCK_OPTS: { sec: number; label: string; blurb: string }[] = [
-    { sec: 0, label: "No clock", blurb: "Open table" },
+    { sec: 0, label: "No clock", blurb: "Untimed" },
     { sec: 180, label: "3 min", blurb: "Each side" },
     { sec: 300, label: "5 min", blurb: "Each side" },
     { sec: 600, label: "10 min", blurb: "Each side" },
@@ -65,7 +65,7 @@ function Home() {
       <section className="relative h-dvh overflow-hidden">
         <div aria-hidden className="arena-wash absolute inset-0" />
         <header className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-bg/80 via-bg/25 to-transparent px-5 pb-16 pt-[max(3.2rem,env(safe-area-inset-top))] text-center">
-          <p className="text-xs uppercase tracking-[0.28em] text-gold">A table of hosts</p>
+          <p className="text-xs uppercase tracking-[0.28em] text-gold">Cinematic chess</p>
           <h1 className="font-display mt-1 text-5xl leading-none sm:text-7xl">Sanctum</h1>
         </header>
         <HeroLineup />
@@ -79,7 +79,7 @@ function Home() {
               <Users className="size-4" /> Pass and play
             </Button>
             <Button size="lg" variant="ghost" className="w-full" onClick={() => toggle("ai")}>
-              <Swords className="size-4" /> Play the table
+              <Swords className="size-4" /> Play AI
             </Button>
             {panel === "ai" && (
               <div className="flex flex-col gap-2 rounded-[20px] border border-border bg-bg/60 p-3">
@@ -99,7 +99,7 @@ function Home() {
                     </button>
                   ))}
                 </div>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted">Host strength</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted">AI strength</p>
                 <div className="grid grid-cols-2 gap-2">
                   {AI_LEVELS.map((l) => (
                     <button

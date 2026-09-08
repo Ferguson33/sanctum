@@ -95,8 +95,8 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
     if (this.state.failed) {
       return (
         <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-bg px-6 text-center text-fg">
-          <p className="font-display text-3xl">The table stalled</p>
-          <p className="max-w-sm text-sm text-muted">Reload to sit again. Canon glyphs always work if a host image is missing.</p>
+          <p className="font-display text-3xl">Something went wrong</p>
+          <p className="max-w-sm text-sm text-muted">Reload to try again. Simple pieces always work if an army image is missing.</p>
           <Button onClick={() => window.location.reload()}>Try again</Button>
         </div>
       );
@@ -317,7 +317,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   useEffect(() => {
     if (mode !== "online" || !linked || parade || !seated) return;
-    flash({ kind: "sat", title: "They sat", body: "The other throne is at the table." }, 2200);
+    flash({ kind: "sat", title: "They joined", body: "Their army is ready." }, 2200);
   }, [linked, mode]); // eslint-disable-line
 
   useEffect(() => {
@@ -372,7 +372,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (checked) {
         flash({ kind: "check", title: "Check", body: `${them.name} struck.` }, 3200);
       } else {
-        flash({ kind: "moved", title: "They moved", body: `${them.name} sent the ply. Your turn.` });
+        flash({ kind: "moved", title: "They moved", body: `${them.name} moved. Your turn.` });
       }
       return;
     }
@@ -456,7 +456,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
               title: mode === "local" ? `${label} taken` : "They took a piece",
               body:
                 mode === "local"
-                  ? `${label} left the table.`
+                  ? `${label} taken.`
                   : `Your ${label.toLowerCase()} is gone.`,
             },
             3200,
@@ -525,7 +525,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (msg.t === "reset") {
       incomingPly.current = false;
       reset(msg.fen, true);
-      flash({ kind: "turn", title: "Rematch", body: "A new table." }, 2200);
+      flash({ kind: "turn", title: "Rematch", body: "New game." }, 2200);
       return;
     }
     if (msg.t === "have") {
@@ -720,7 +720,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     const chess = chessRef.current;
     if (chess.turn() !== "b" || chess.isGameOver()) return;
     setThinking(true);
-    flash({ kind: "sat", title: "They think", body: `${bFaction.name} considers the ply.` }, 1600);
+    flash({ kind: "sat", title: "They think", body: `${bFaction.name} is thinking.` }, 1600);
     void think(chess.fen(), aiLevel)
       .then((mv) => {
         const now = chessRef.current;
@@ -757,7 +757,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     const url = `${window.location.origin}/r/${room}?${q.toString()}`;
     const text = table.b
       ? `${wFaction.name} vs ${bFaction.name} — join ${room}`
-      : `${wFaction.name} sits white. Pick your host and join ${room}`;
+      : `${wFaction.name} plays white. Pick your army and join ${room}`;
     try {
       if (navigator.share) await navigator.share({ title: "Sanctum", url, text });
       else {
@@ -792,15 +792,15 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <p className="font-display text-lg leading-none sm:text-xl">{title}</p>
           <p className="text-xs leading-snug text-muted text-pretty">
             {thinking
-              ? `${bFaction.name} considers`
+              ? `${bFaction.name} thinking`
               : ending
               ? endLabel(ending, wFaction.name, bFaction.name)
               : handoff === "ready"
-                ? "End turn to send this ply"
+                ? "End turn to send this move"
                 : handoff === "sending"
-                  ? "Handing the board across"
+                  ? "Sending the board…"
                   : handoff === "theirs"
-                    ? `${sideToMove.name} has the board`
+                    ? `${sideToMove.name} to move`
                     : (
                         <>
                           <span className={turn === "w" ? "text-gold" : "text-ember"}>{sideToMove.name}</span>
@@ -862,12 +862,12 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <span className="font-medium tracking-[0.2em] text-fg">{room}</span>
           <span>
             {handoff === "sending"
-              ? "Sending your ply…"
+              ? "Sending your move…"
               : connectedPeer || linked
                 ? "Phones linked"
                 : p2p.joined
                   ? "Waiting for their phone…"
-                  : "Opening the table…"}
+                  : "Connecting…"}
           </span>
           <button type="button" className="inline-flex items-center gap-1 text-ivory" onClick={shareRoom}>
             <Share2 className="size-3.5" /> Share
@@ -932,7 +932,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                   {handoff === "sending"
                     ? ending
                       ? "Sending the finish…"
-                      : "Handing the board across…"
+                      : "Sending the board…"
                     : "Ready to send"}
                 </p>
                 <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
@@ -943,7 +943,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
               <>
                 <p className="text-sm text-muted">
                   You are {host ? wFaction.name : bFaction.name}
-                  {handoff === "theirs" ? " · their ply" : ""}
+                  {handoff === "theirs" ? " · their move" : ""}
                 </p>
                 <Button
                   variant="ghost"
@@ -964,7 +964,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         ) : mode === "ai" ? (
           <>
             <p className="min-w-0 flex-1 text-sm leading-snug text-muted text-pretty">
-              {thinking ? `${bFaction.name} considers…` : `${wFaction.name} vs ${getAiLevel(aiLevel).name}`}
+              {thinking ? `${bFaction.name} thinking…` : `${wFaction.name} vs ${getAiLevel(aiLevel).name}`}
             </p>
             <Button variant="subtle" size="sm" onClick={undo} disabled={history.length === 0 || thinking}>
               <Undo2 className="size-4" /> Undo
@@ -1027,10 +1027,10 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
               {callout.kind === "check"
                 ? "The king"
                 : callout.kind === "taken"
-                  ? "Fallen"
+                  ? "Taken"
                   : callout.kind === "moved"
-                    ? "Across the table"
-                    : "The table"}
+                    ? "Their move"
+                    : "Match"}
             </p>
             <p
               className={cn(
@@ -1083,15 +1083,15 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             <p className="font-display mt-1 text-4xl">{wFaction.name}</p>
             <p className="mt-3 font-display text-3xl tracking-[0.18em] text-ivory">{room}</p>
             <p className="mt-2 text-sm text-muted text-pretty">
-              Share the link (or read them the code). They tap Join a duel, pick an army, then Sit — only then the table
-              opens.
+              Share the link (or read them the code). They tap Join a duel, pick an army, then Play — only then the match
+              starts.
             </p>
             <p className="mt-3 text-xs text-gold">
               {connectedPeer || linked
-                ? "They’re in — waiting for them to sit…"
+                ? "They’re in — waiting for them to pick an army…"
                 : p2p.joined
                   ? "Waiting for their phone…"
-                  : "Opening the table…"}
+                  : "Connecting…"}
             </p>
             <Button className="mt-4 w-full" onClick={shareRoom}>
               <Share2 className="size-4" /> Share link
@@ -1107,17 +1107,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             <p className="mb-1 text-center font-display text-2xl tracking-[0.14em]">{room}</p>
             <p className="mb-5 text-center text-sm text-muted text-pretty">
               {connectedPeer || linked
-                ? `${wFaction.name} sits white. Pick your army, then sit to open the table.`
+                ? `${wFaction.name} plays white. Pick your army, then play to start.`
                 : "Connecting to their phone… you can still pick your army."}
             </p>
             <ArmyPick
               kicker="Your army"
-              note={`${wFaction.name} already has white. Choose a different host, then sit.`}
+              note={`${wFaction.name} already has white. Choose a different army, then play.`}
               selected={draftBlack}
               taken={table.w}
               onSelect={setDraftBlack}
               onSit={sitBlack}
-              sitLabel={`Sit & play as ${getFaction(draftBlack).name}`}
+              sitLabel={`Play as ${getFaction(draftBlack).name}`}
             />
           </div>
         </div>
@@ -1181,7 +1181,7 @@ function SettingsSheet({
       >
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-border" />
         <p className="font-display text-2xl">Table</p>
-        <p className="mt-1 text-sm text-muted">Pick a pairing, or mix the hosts. Rules stay the same.</p>
+        <p className="mt-1 text-sm text-muted">Pick a pairing, or mix the armies. Rules stay the same.</p>
 
         <p className="mt-5 text-xs uppercase tracking-[0.18em] text-muted">Pairing</p>
         <div className="mt-2 grid gap-2">
@@ -1344,7 +1344,7 @@ function FactionRow({
             )}
           >
             <img src={factionSrc(f, "k")} alt="" className="h-12 w-auto" />
-            <span className="mt-1 text-[11px] font-medium leading-none">{sat ? "Sat" : f.name}</span>
+            <span className="mt-1 text-[11px] font-medium leading-none">{sat ? "Taken" : f.name}</span>
           </button>
         );
       })}
