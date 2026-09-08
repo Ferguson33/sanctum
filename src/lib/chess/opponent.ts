@@ -13,9 +13,10 @@ export const AI_LEVELS: {
   limit: boolean;
   movetime: number;
 }[] = [
-  { id: "squire", name: "Squire", blurb: "Hesitates. Blunders.", elo: 1320, skill: 0, limit: true, movetime: 280 },
-  { id: "knight", name: "Knight", blurb: "Club strength.", elo: 1600, skill: 7, limit: true, movetime: 500 },
-  { id: "lord", name: "Lord", blurb: "Sharp and patient.", elo: 2000, skill: 14, limit: true, movetime: 800 },
+  // Stockfish UCI_Elo floors ~1320 — Squire stays soft via heuristic + blunders, not the engine floor.
+  { id: "squire", name: "Squire", blurb: "Learning the table. Misses stuff.", elo: 900, skill: 0, limit: true, movetime: 80 },
+  { id: "knight", name: "Knight", blurb: "Solid novice. Occasional gifts.", elo: 1320, skill: 2, limit: true, movetime: 320 },
+  { id: "lord", name: "Lord", blurb: "Club sharp. Few free pieces.", elo: 1700, skill: 10, limit: true, movetime: 650 },
   { id: "king", name: "King", blurb: "Full table.", elo: 3190, skill: 20, limit: false, movetime: 1200 },
 ];
 
@@ -109,9 +110,45 @@ async function stockfishMove(fen: string, level: (typeof AI_LEVELS)[number]): Pr
 
 const VAL: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 
-function heuristicMove(fen: string, level: (typeof AI_LEVELS)[number]): AiMove {
+function pickMove(mv: { from: string; to: string; promotion?: string }): AiMove {
+  return {
+    from: mv.from as Square,
+    to: mv.to as Square,
+    promotion: mv.promotion ? (mv.promotion as PieceType) : undefined,
+  };
+}
+
+/** Soft table — random blunders so Squire stays below Stockfish's Elo floor. */
+function squireMove(fen: string): AiMove {
   const chess = new Chess(fen);
-  const depth = level.id === "squire" ? 0 : level.id === "knight" ? 1 : level.id === "lord" ? 2 : 3;
+  const verbose = chess.moves({ verbose: true });
+  if (!verbose.length) throw new Error("no moves");
+  // ~40%: pure random legal move (hangs pieces, misses mates).
+  if (Math.random() < 0.4) {
+    return pickMove(verbose[Math.floor(Math.random() * verbose.length)]);
+  }
+  let best = verbose[0];
+  let bestScore = -Infinity;
+  for (const mv of verbose) {
+    const next = new Chess(fen);
+    next.move(mv);
+    // Huge noise + weak capture hunger = leaves stuff en prise.
+    let score = -evalBoard(next) + Math.random() * 420;
+    if (mv.captured) score += (VAL[mv.captured] ?? 0) * 0.08;
+    if (next.isCheckmate()) score += 5000;
+    if (score > bestScore) {
+      bestScore = score;
+      best = mv;
+    }
+  }
+  return pickMove(best);
+}
+
+function heuristicMove(fen: string, level: (typeof AI_LEVELS)[number]): AiMove {
+  if (level.id === "squire") return squireMove(fen);
+  const chess = new Chess(fen);
+  const depth = level.id === "knight" ? 1 : level.id === "lord" ? 2 : 3;
+  const noise = level.id === "knight" ? 120 : level.id === "lord" ? 50 : 20;
   const verbose = chess.moves({ verbose: true });
   if (!verbose.length) throw new Error("no moves");
   let best = verbose[0];
@@ -119,7 +156,7 @@ function heuristicMove(fen: string, level: (typeof AI_LEVELS)[number]): AiMove {
   for (const mv of verbose) {
     const next = new Chess(fen);
     next.move(mv);
-    let score = -evalBoard(next) + Math.random() * (level.id === "squire" ? 180 : 40);
+    let score = -evalBoard(next) + Math.random() * noise;
     if (mv.captured) score += (VAL[mv.captured] ?? 0) * 0.15;
     if (depth >= 1 && !next.isGameOver()) {
       score -= replyScore(next, depth - 1);
@@ -131,11 +168,7 @@ function heuristicMove(fen: string, level: (typeof AI_LEVELS)[number]): AiMove {
       best = mv;
     }
   }
-  return {
-    from: best.from as Square,
-    to: best.to as Square,
-    promotion: best.promotion as PieceType | undefined,
-  };
+  return pickMove(best);
 }
 
 function evalBoard(chess: Chess): number {
@@ -181,6 +214,8 @@ function isLegalAiMove(fen: string, mv: AiMove): boolean {
 
 export async function think(fen: string, levelId: AiLevelId | string | undefined): Promise<AiMove> {
   const level = getAiLevel(levelId);
+  // Squire never uses Stockfish — even "Elo 900" clamps near 1320 in practice.
+  if (level.id === "squire") return squireMove(fen);
   try {
     const mv = await stockfishMove(fen, level);
     if (isLegalAiMove(fen, mv)) return mv;
