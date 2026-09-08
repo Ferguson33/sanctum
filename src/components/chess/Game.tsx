@@ -40,6 +40,7 @@ import {
   legalMoves,
   needsPromotion,
   piecesFromFen,
+  reconcilePieces,
   playMove,
   type Ending,
   type LivePiece,
@@ -164,7 +165,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     const sync = () => {
       window.clearTimeout(t);
       t = window.setTimeout(() => {
-        setPieces(piecesFromFen(chessRef.current.fen()));
+        setPieces((ps) => reconcilePieces(ps, chessRef.current.fen()));
       }, 80);
     };
     window.addEventListener("resize", sync);
@@ -414,7 +415,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setPieces((ps) => applyMoveToPieces(ps, move));
     // Reconcile sprites to FEN so art can never drift into illegal geometry.
     window.setTimeout(() => {
-      setPieces(piecesFromFen(chess.fen()));
+      setPieces((ps) => reconcilePieces(ps, chess.fen()));
     }, 280);
     setSelected(null);
     setLegal([]);
@@ -482,7 +483,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (msg.t === "sync") {
       if (plyOfFen(msg.fen) < plyOfFen(chess.fen())) return;
       chess.load(msg.fen);
-      setPieces(piecesFromFen(msg.fen));
+      setPieces((ps) => reconcilePieces(ps, msg.fen));
       setFen(msg.fen);
       setTurn(chess.turn());
       setHistory([]);
@@ -506,7 +507,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (chess.fen() === before && msg.fen !== before) {
         try {
           chess.load(msg.fen);
-          setPieces(piecesFromFen(msg.fen));
+          setPieces((ps) => reconcilePieces(ps, msg.fen));
           snapshot(chess, null);
           setLastMove({ from: msg.from as Square, to: msg.to as Square });
         } catch {
@@ -550,7 +551,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         return;
       }
       incomingPly.current = true;
-      setPieces(piecesFromFen(msg.fen));
+      setPieces((ps) => reconcilePieces(ps, msg.fen));
       setFen(msg.fen);
       setTurn(chess.turn());
       const end = endingOf(chess);
@@ -672,7 +673,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     const chess = new Chess(nextFen);
     chessRef.current = chess;
     setFen(chess.fen());
-    setPieces(piecesFromFen(chess.fen()));
+    setPieces((ps) => reconcilePieces(ps, chess.fen()));
     setHistory([]);
     setLastMove(null);
     setSelected(null);
@@ -700,7 +701,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       const undone = chess.undo();
       if (!undone) return;
     }
-    setPieces(piecesFromFen(chess.fen()));
+    setPieces((ps) => reconcilePieces(ps, chess.fen()));
     snapshot(chess, null);
     setHistory((h) => (mode === "ai" ? h.slice(0, -2) : h.slice(0, -1)));
     setLastMove(null);
