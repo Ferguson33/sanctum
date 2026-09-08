@@ -308,8 +308,6 @@ export async function getGameByRoom(
   return toGameRow(rows[0], profileId ?? undefined);
 }
 
-export { LIVE_ACCEPT_SEC } from "./types";
-
 export type UpsertGameInput = {
   room: string;
   fen: string;
