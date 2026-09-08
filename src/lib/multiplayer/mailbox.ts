@@ -121,20 +121,29 @@ export function peersFrom(envs: Envelope[], self: string, now = Date.now()): Pee
 }
 
 export function tableFrom(envs: Envelope[]): TableWire | undefined {
+  let latest: TableWire | undefined;
   for (let i = envs.length - 1; i >= 0; i--) {
     const p = envs[i].payload;
     if (!p || typeof p !== "object") continue;
-    const t = p as { t?: string; w?: string; b?: string; board?: string; wFaction?: string; bFaction?: string; boardId?: string };
-    if (t.t === "table" || t.t === "hello") {
-      const parsed = parseTable(t);
-      if (parsed) return parsed;
+    const t = p as {
+      t?: string;
+      w?: string;
+      b?: string;
+      board?: string;
+      wFaction?: string;
+      bFaction?: string;
+      boardId?: string;
+    };
+    let parsed: TableWire | null = null;
+    if (t.t === "table" || t.t === "hello") parsed = parseTable(t);
+    else if (t.t === "sync" || t.t === "state") {
+      parsed = parseTable({ w: t.wFaction, b: t.bFaction, board: t.boardId });
     }
-    if (t.t === "sync") {
-      const parsed = parseTable({ w: t.wFaction, b: t.bFaction, board: t.boardId });
-      if (parsed) return parsed;
-    }
+    if (!parsed) continue;
+    if (parsed.b) return parsed;
+    if (!latest) latest = parsed;
   }
-  return undefined;
+  return latest;
 }
 
 export async function sendWithRetry(room: string, from: string, payload: unknown, tries = 3) {

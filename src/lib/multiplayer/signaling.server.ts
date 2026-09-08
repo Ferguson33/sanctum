@@ -155,28 +155,26 @@ async function readRemote(room: string): Promise<Envelope[]> {
 }
 
 function tableFrom(envs: Envelope[]): TableWire | undefined {
+  let latest: TableWire | undefined;
   for (let i = envs.length - 1; i >= 0; i--) {
     const p = envs[i].payload;
     if (!p || typeof p !== "object") continue;
     const t = p as { t?: string; w?: string; b?: string; board?: string; table?: TableWire };
-    if (t.t === "table") {
-      const parsed = parseTable(t);
-      if (parsed) return parsed;
-    }
-    if (t.t === "hello" && t.w && t.b && t.board) {
-      const parsed = parseTable(t);
-      if (parsed) return parsed;
-    }
-    if (t.t === "sync") {
-      const parsed = parseTable({
+    let parsed: TableWire | null = null;
+    if (t.t === "table") parsed = parseTable(t);
+    else if (t.t === "hello" && t.w && t.b && t.board) parsed = parseTable(t);
+    else if (t.t === "sync" || t.t === "state") {
+      parsed = parseTable({
         w: (t as { wFaction?: string }).wFaction,
         b: (t as { bFaction?: string }).bFaction,
         board: (t as { boardId?: string }).boardId,
       });
-      if (parsed) return parsed;
     }
+    if (!parsed) continue;
+    if (parsed.b) return parsed;
+    if (!latest) latest = parsed;
   }
-  return undefined;
+  return latest;
 }
 
 async function loadRoom(room: string): Promise<Envelope[]> {

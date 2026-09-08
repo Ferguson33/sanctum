@@ -320,8 +320,14 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     });
   }, [mode, p2p.table]);
 
+  const announcedTable = useRef(false);
+
   useEffect(() => {
     if (mode !== "online" || !host || !room) return;
+    // First publish may be white-only. Never send that empty seat again —
+    // a later empty table was winning the mailbox and trapping the host.
+    if (!table.b && announcedTable.current) return;
+    announcedTable.current = true;
     void publishMailbox(room, selfId ?? "host", {
       t: "table",
       w: table.w,
@@ -441,12 +447,14 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const goHome = useCallback(
     (opts?: { resign?: boolean }) => {
       if (mode === "online" && room) {
-        if (!seated && seatKind === "live") {
+        const ply = plyOfFen(chessRef.current.fen());
+        const theySat = Boolean(table.b) || Boolean(p2p.table?.b) || ply > 0 || linked;
+        if (!theySat && seatKind === "live") {
           void finishGameClient(room).catch(() => {});
-        } else if (seated && localProfile?.id) {
+        } else if (localProfile?.id) {
           persistGame();
         }
-        if (opts?.resign && seated) {
+        if (opts?.resign && theySat) {
           const winner: Side = host ? "b" : "w";
           setEnding({ kind: "resign", winner });
           setPhase("over");
@@ -455,7 +463,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       }
       void nav({ to: "/" });
     },
-    [mode, room, seated, seatKind, localProfile?.id, persistGame, host, p2p, nav],
+    [mode, room, table.b, p2p.table?.b, linked, seatKind, localProfile?.id, persistGame, host, p2p, nav],
   );
 
   function onBack() {
@@ -540,6 +548,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       alive = false;
     };
   }, [mode, room, localProfile?.id]); // eslint-disable-line
+
+  useEffect(() => {
+    if (mode !== "online" || !room || !localProfile?.id || !seated) return;
+    persistGame();
+  }, [mode, room, localProfile?.id, seated, persistGame]);
 
   // Persist after End turn (state pushed) and when we ack a remote state apply.
   useEffect(() => {
@@ -824,6 +837,13 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       return;
     }
     if (msg.t === "state") {
+      if (msg.bFaction || msg.wFaction || msg.boardId) {
+        setTable((cur) => ({
+          w: msg.wFaction || cur.w,
+          b: msg.bFaction || cur.b,
+          board: msg.boardId || cur.board,
+        }));
+      }
       const remotePly = msg.ply ?? plyOfFen(msg.fen);
       const localPly = plyOfFen(chess.fen());
       if (remotePly < localPly) {
@@ -852,7 +872,6 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (msg.clocks) setClocks(msg.clocks);
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
       ackHave(remotePly, true);
-      // Receiver upsert after successful state apply (slow multi-duel).
       window.setTimeout(() => persistGameRef.current({ forceHost: Boolean(host) }), 0);
       if (end) {
         if (prefs.sound) playMoveSound("end");
