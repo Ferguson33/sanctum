@@ -40,6 +40,8 @@ export interface PeerInfo {
   candidateType: string | null;
   /** Data-channel ping RTT (ms), measured every 2s once connected. */
   rttMs: number | null;
+  /** Optional Sanctum PIN-profile id announced over the room bus. */
+  profileId?: string | null;
 }
 
 export interface P2PRoomOptions {

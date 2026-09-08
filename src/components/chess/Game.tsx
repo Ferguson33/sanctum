@@ -50,6 +50,7 @@ import { playHaptic } from "@/lib/chess/haptic";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
 import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
+import { recordMatchClient, useProfile } from "@/lib/profile/client";
 import { cn } from "@/lib/utils";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -147,6 +148,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   /** Last ply we already acked — avoid spamming `have` on every duplicate state. */
   const lastHavePly = useRef(-1);
   const lastMoveRef = useRef(lastMove);
+  const peerProfileIdRef = useRef<string | null>(null);
+  const recordedMatchRef = useRef(false);
+  const { profile: localProfile } = useProfile();
   handoffRef.current = handoff;
   lastMoveRef.current = lastMove;
 
@@ -180,14 +184,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   const p2p = useRoomBus({
     room: room ?? "local",
-    name: host ? wFaction.name : bFaction.name,
+    name: localProfile?.displayName ?? (host ? wFaction.name : bFaction.name),
     selfId,
     enabled: mode === "online" && !!room,
+    profileId: localProfile?.id ?? null,
+    profileName: localProfile?.displayName ?? null,
   });
 
   const connectedPeer = p2p.peers.find((p) => p.connectionState === "connected");
   useEffect(() => {
     if (connectedPeer) setLinked(true);
+    if (connectedPeer?.profileId) peerProfileIdRef.current = connectedPeer.profileId;
   }, [connectedPeer]);
   const myColor: Side | "both" = mode === "local" ? "both" : mode === "ai" || host ? "w" : "b";
   const mySide: Side = myColor === "b" ? "b" : "w";
@@ -321,6 +328,45 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     flash({ kind: "sat", title: "They joined", body: "Their army is ready." }, 2200);
   }, [linked, mode]); // eslint-disable-line
 
+  // Announce signed-in seat once so the peer can record W–L.
+  useEffect(() => {
+    if (mode !== "online" || !localProfile?.id) return;
+    try {
+      p2p.send({
+        t: "hello",
+        host,
+        name: localProfile.displayName,
+        profileId: localProfile.id,
+        profileName: localProfile.displayName,
+      } satisfies NetMsg);
+    } catch {
+      /* */
+    }
+  }, [mode, localProfile?.id, localProfile?.displayName, host, p2p]);
+
+  // Record decisive online results once when both seats are known.
+  useEffect(() => {
+    if (mode !== "online" || !room) return;
+    if (!ending || (ending.kind !== "checkmate" && ending.kind !== "resign")) return;
+    const localId = localProfile?.id;
+    const peerId = peerProfileIdRef.current;
+    if (!localId || !peerId || recordedMatchRef.current) return;
+    if (!table.w || !table.b) return;
+    recordedMatchRef.current = true;
+    const winnerId = ending.winner === "w" ? (host ? localId : peerId) : host ? peerId : localId;
+    const loserId = winnerId === localId ? peerId : localId;
+    void recordMatchClient({
+      winnerId,
+      loserId,
+      wFaction: table.w,
+      bFaction: table.b,
+      room,
+    }).catch(() => {
+      // Allow a single retry if the first call failed (network blip).
+      recordedMatchRef.current = false;
+    });
+  }, [ending, mode, room, localProfile?.id, host, table.w, table.b]);
+
   useEffect(() => {
     if (handoff !== "sending") {
       setSendStuck(false);
@@ -345,6 +391,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         bFaction: table.b,
         boardId: table.board,
         ...(clockLimit ? { clocks: clocksRef.current } : {}),
+        ...(localProfile?.id
+          ? { profileId: localProfile.id, profileName: localProfile.displayName }
+          : {}),
       };
       p2p.send(msg);
     };
@@ -517,8 +566,16 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   }
 
   function handleNet(msg: NetMsg) {
+    if (
+      (msg.t === "hello" || msg.t === "state") &&
+      typeof msg.profileId === "string" &&
+      msg.profileId
+    ) {
+      peerProfileIdRef.current = msg.profileId;
+    }
 
     const chess = chessRef.current;
+    if (msg.t === "hello") return;
     if (msg.t === "sync") {
       if (plyOfFen(msg.fen) < plyOfFen(chess.fen())) return;
       chess.load(msg.fen);
@@ -563,6 +620,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     }
     if (msg.t === "reset") {
       incomingPly.current = false;
+      recordedMatchRef.current = false;
       reset(msg.fen, true);
       flash({ kind: "turn", title: "Rematch", body: "New game." }, 2200);
       return;

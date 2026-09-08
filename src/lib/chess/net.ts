@@ -3,7 +3,7 @@ import { knownBoardId, knownFactionId, type PieceType } from "./catalog";
 export type TableWire = { w: string; b: string; board: string };
 
 export type NetMsg =
-  | { t: "hello"; host: boolean; name: string }
+  | { t: "hello"; host: boolean; name: string; profileId?: string; profileName?: string }
   | {
       t: "sync";
       fen: string;
@@ -32,6 +32,8 @@ export type NetMsg =
       bFaction?: string;
       boardId?: string;
       clocks?: { w: number; b: number };
+      profileId?: string;
+      profileName?: string;
     }
   | { t: "have"; ply: number }
   | { t: "resign" }

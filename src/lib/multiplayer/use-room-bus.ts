@@ -17,6 +17,8 @@ interface Options {
   name?: string;
   selfId?: string;
   enabled?: boolean;
+  profileId?: string | null;
+  profileName?: string | null;
 }
 
 export function useRoomBus(options: Options): P2PRoomHandle {
@@ -26,6 +28,10 @@ export function useRoomBus(options: Options): P2PRoomHandle {
   );
   const [room] = useState(() => options.room);
   const [name] = useState(() => options.name ?? selfId);
+  const profileIdRef = useRef(options.profileId ?? null);
+  const profileNameRef = useRef(options.profileName ?? null);
+  profileIdRef.current = options.profileId ?? null;
+  profileNameRef.current = options.profileName ?? null;
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [joined, setJoined] = useState(false);
   const [table, setTable] = useState<{ w: string; b: string; board: string } | null>(null);
@@ -55,12 +61,14 @@ export function useRoomBus(options: Options): P2PRoomHandle {
         if (roster.length) {
           linkedRef.current = true;
           for (const p of roster) {
+            const prev = knownPeers.current.get(p.id);
             knownPeers.current.set(p.id, {
               id: p.id,
               name: p.name,
               connectionState: "connected",
               candidateType: "relay",
               rttMs: null,
+              profileId: prev?.profileId ?? null,
             });
           }
           setPeers([...knownPeers.current.values()]);
@@ -70,8 +78,35 @@ export function useRoomBus(options: Options): P2PRoomHandle {
           if (seenIds.current.has(msg.id)) continue;
           seenIds.current.add(msg.id);
           if (msg.from === selfId) continue;
-          const t = msg.payload && typeof msg.payload === "object" ? (msg.payload as { t?: string }).t : undefined;
-          if (t === "hello") continue;
+          const payload = msg.payload && typeof msg.payload === "object" ? (msg.payload as Record<string, unknown>) : null;
+          const t = payload && typeof payload.t === "string" ? payload.t : undefined;
+          if (t === "hello") {
+            const profileId =
+              typeof payload?.profileId === "string" && payload.profileId
+                ? payload.profileId
+                : null;
+            const peerName =
+              typeof payload?.name === "string" && payload.name ? payload.name : msg.from;
+            const prev = knownPeers.current.get(msg.from);
+            knownPeers.current.set(msg.from, {
+              id: msg.from,
+              name: peerName,
+              connectionState: "connected",
+              candidateType: "relay",
+              rttMs: null,
+              profileId: profileId ?? prev?.profileId ?? null,
+            });
+            setPeers([...knownPeers.current.values()]);
+            continue;
+          }
+          // Also accept profileId on state envelopes without waiting for Game.
+          if (t === "state" && typeof payload?.profileId === "string" && payload.profileId) {
+            const prev = knownPeers.current.get(msg.from);
+            if (prev && prev.profileId !== payload.profileId) {
+              knownPeers.current.set(msg.from, { ...prev, profileId: payload.profileId });
+              setPeers([...knownPeers.current.values()]);
+            }
+          }
           const key = payloadKey(msg.payload);
           if (key) {
             if (seenKeys.current.has(key)) continue;
@@ -88,7 +123,12 @@ export function useRoomBus(options: Options): P2PRoomHandle {
 
     const hello = async () => {
       if (closed.current) return;
-      await publishMailbox(room, selfId, { t: "hello", id: selfId, name }).catch(() => {});
+      const payload: Record<string, unknown> = { t: "hello", id: selfId, name };
+      if (profileIdRef.current) {
+        payload.profileId = profileIdRef.current;
+        payload.profileName = profileNameRef.current ?? name;
+      }
+      await publishMailbox(room, selfId, payload).catch(() => {});
     };
 
     const wake = () => {
