@@ -49,3 +49,6 @@ export const LIVE_ACCEPT_SEC = 300;
 
 /** After this with no ply, Drop is not a resign. */
 export const DROP_STALE_MS = 24 * 60 * 60 * 1000;
+
+/** Ranked games that count toward standings, per pairing, rolling 7 days. */
+export const RANKED_PER_WEEK = 3;

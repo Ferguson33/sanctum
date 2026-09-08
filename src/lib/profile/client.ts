@@ -53,7 +53,7 @@ export function fetchStandings() {
 }
 
 export function fetchH2H(otherId: string) {
-  return profileFetch<{ you: number; them: number; recent: MatchRow[]; other: PublicProfile | null }>(
+  return profileFetch<{ you: number; them: number; recent: MatchRow[]; other: PublicProfile | null; rankedWeek?: { used: number; cap: number; remaining: number } }>(
     "h2h",
     { otherId },
   );
@@ -66,7 +66,7 @@ export function recordMatchClient(input: {
   bFaction: string;
   room?: string;
 }) {
-  return profileFetch<{ ok: boolean; id?: string; duplicate?: boolean; error?: string }>(
+  return profileFetch<{ ok: boolean; id?: string; duplicate?: boolean; ranked?: boolean; error?: string }>(
     "record",
     input,
   );

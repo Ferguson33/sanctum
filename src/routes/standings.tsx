@@ -45,6 +45,7 @@ function StandingsPage() {
     them: number;
     recent: MatchRow[];
     other: PublicProfile | null;
+    rankedWeek?: { used: number; cap: number; remaining: number };
   } | null>(null);
   const [h2hLoading, setH2hLoading] = useState(false);
 
@@ -190,6 +191,13 @@ function StandingsPage() {
                 <p className="text-sm">
                   Head-to-head: <span className="text-gold">{h2h.you}</span> – {h2h.them}
                 </p>
+                {h2h.rankedWeek ? (
+                  <p className="mt-1 text-xs text-muted">
+                    {h2h.rankedWeek.remaining > 0
+                      ? `${h2h.rankedWeek.used} of ${h2h.rankedWeek.cap} ranked this week`
+                      : `Ranked cap hit (${h2h.rankedWeek.cap} this week) — more games are friendly`}
+                  </p>
+                ) : null}
                 {h2h.recent.length === 0 ? (
                   <p className="mt-2 text-sm text-muted">No finished duels yet.</p>
                 ) : (

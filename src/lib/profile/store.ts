@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { hashPin, verifyPin } from "./pin";
 import type { GameRow, MatchRow, Profile, Standing } from "./types";
-import { DROP_STALE_MS, LIVE_ACCEPT_SEC } from "./types";
+import { DROP_STALE_MS, LIVE_ACCEPT_SEC, RANKED_PER_WEEK } from "./types";
 
 export type { GameRow, MatchRow, Profile, Standing } from "./types";
-export { LIVE_ACCEPT_SEC, DROP_STALE_MS } from "./types";
+export { LIVE_ACCEPT_SEC, DROP_STALE_MS, RANKED_PER_WEEK } from "./types";
 
 type ProfileRow = {
   id: string;
@@ -125,7 +125,12 @@ export async function listStandings(): Promise<Standing[]> {
 export async function h2h(
   a: string,
   b: string,
-): Promise<{ you: number; them: number; recent: MatchRow[] }> {
+): Promise<{
+  you: number;
+  them: number;
+  recent: MatchRow[];
+  rankedWeek: { used: number; cap: number; remaining: number };
+}> {
   const sql = await getSql();
   const rows = await sql.query<{
     id: string;
@@ -158,7 +163,31 @@ export async function h2h(
       endedAt: String(r.ended_at),
     };
   });
-  return { you, them, recent };
+  return { you, them, recent, rankedWeek: await rankedWeekFor(a, b) };
+}
+
+export async function rankedWeekFor(
+  a: string,
+  b: string,
+): Promise<{ used: number; cap: number; remaining: number }> {
+  if (!a || !b || a === b) return { used: 0, cap: RANKED_PER_WEEK, remaining: RANKED_PER_WEEK };
+  const sql = await getSql();
+  const rows = await sql.query<{ n: number }>(
+    `select count(*)::int as n
+       from sanctum.matches
+      where ended_at > now() - interval '7 days'
+        and (
+          (winner_id = $1 and loser_id = $2)
+          or (winner_id = $2 and loser_id = $1)
+        )`,
+    [a, b],
+  );
+  const used = Number(rows[0]?.n) || 0;
+  return {
+    used,
+    cap: RANKED_PER_WEEK,
+    remaining: Math.max(0, RANKED_PER_WEEK - used),
+  };
 }
 
 /** Insert a decisive match. Idempotent when `room` is set (partial unique index). */
@@ -168,7 +197,9 @@ export async function recordMatch(input: {
   wFaction: string;
   bFaction: string;
   room?: string | null;
-}): Promise<{ ok: true; id: string; duplicate?: boolean } | { ok: false; error: string }> {
+}): Promise<
+  { ok: true; id?: string; duplicate?: boolean; ranked: boolean } | { ok: false; error: string }
+> {
   if (input.winnerId === input.loserId) {
     return { ok: false, error: "winner and loser must differ" };
   }
@@ -183,7 +214,12 @@ export async function recordMatch(input: {
       "select id from sanctum.matches where room = $1 limit 1",
       [room],
     );
-    if (existing.length) return { ok: true, id: existing[0].id, duplicate: true };
+    if (existing.length) return { ok: true, id: existing[0].id, duplicate: true, ranked: true };
+  }
+
+  const week = await rankedWeekFor(input.winnerId, input.loserId);
+  if (week.remaining <= 0) {
+    return { ok: true, ranked: false };
   }
 
   const id = randomUUID();
@@ -200,11 +236,11 @@ export async function recordMatch(input: {
         "select id from sanctum.matches where room = $1 limit 1",
         [room],
       );
-      if (again.length) return { ok: true, id: again[0].id, duplicate: true };
+      if (again.length) return { ok: true, id: again[0].id, duplicate: true, ranked: true };
     }
     throw err;
   }
-  return { ok: true, id };
+  return { ok: true, id, ranked: true };
 }
 
 

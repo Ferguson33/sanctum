@@ -50,7 +50,7 @@ import { playHaptic } from "@/lib/chess/haptic";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
 import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
-import { fetchGameByRoom, finishGameClient, recordMatchClient, upsertGameClient, useProfile } from "@/lib/profile/client";
+import { fetchGameByRoom, fetchH2H, finishGameClient, recordMatchClient, upsertGameClient, useProfile } from "@/lib/profile/client";
 import { LIVE_ACCEPT_SEC } from "@/lib/profile/types";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +146,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [seatKind, setSeatKind] = useState(inviteKind);
   const [leaveAsk, setLeaveAsk] = useState(false);
   const [callout, setCallout] = useState<Callout>(null);
+  const [weekRank, setWeekRank] = useState<{ used: number; cap: number; remaining: number } | null>(null);
+  const [rankedCounted, setRankedCounted] = useState<boolean | null>(null);
   const nav = useNavigate();
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
   const didParade = useRef(mode === "local" || mode === "ai");
@@ -208,6 +210,20 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (connectedPeer) setLinked(true);
     if (connectedPeer?.profileId) peerProfileIdRef.current = connectedPeer.profileId;
   }, [connectedPeer]);
+
+  useEffect(() => {
+    const peerId = connectedPeer?.profileId ?? peerProfileIdRef.current;
+    if (!localProfile?.id || !peerId || mode !== "online") return;
+    let alive = true;
+    void fetchH2H(peerId)
+      .then((d) => {
+        if (alive && d.rankedWeek) setWeekRank(d.rankedWeek);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [connectedPeer?.profileId, localProfile?.id, mode, seated]);
   const myColor: Side | "both" = mode === "local" ? "both" : mode === "ai" || host ? "w" : "b";
   const mySide: Side = myColor === "b" ? "b" : "w";
   const myFaction = mySide === "b" ? bFaction : wFaction;
@@ -405,10 +421,13 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       wFaction: table.w,
       bFaction: table.b,
       room,
-    }).catch(() => {
-      // Allow a single retry if the first call failed (network blip).
-      recordedMatchRef.current = false;
-    });
+    })
+      .then((r) => {
+        setRankedCounted(r.ranked !== false);
+      })
+      .catch(() => {
+        recordedMatchRef.current = false;
+      });
     if (!finishedGameRef.current) {
       finishedGameRef.current = true;
       void finishGameClient(room).catch(() => {
@@ -1195,6 +1214,14 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </div>
       )}
 
+      {mode === "online" && weekRank && seated ? (
+        <p className="relative z-10 shrink-0 px-4 pb-1 text-center text-[11px] text-muted">
+          {weekRank.remaining > 0
+            ? `Ranked ${weekRank.used} of ${weekRank.cap} this week with them`
+            : "Friendly — this one won’t hit the standings"}
+        </p>
+      ) : null}
+
       {clockLimit > 0 && (mode === "ai" || seated) && (
         <div className="relative z-10 flex shrink-0 items-center justify-center gap-6 px-4 py-1 text-sm tabular-nums">
           <span className={cn(liveTurn === "w" && handoff === "idle" ? "text-gold" : "text-muted")}>
@@ -1372,6 +1399,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <div className="panel w-full max-w-sm rounded-[28px] p-6 text-center">
             <p className="font-display text-3xl">{endTitle(ending, playerName("w"), playerName("b"))}</p>
             <p className="mt-2 text-sm text-muted">{endLabel(ending, playerName("w"), playerName("b"))}</p>
+            {mode === "online" && (rankedCounted === false || (rankedCounted == null && weekRank && weekRank.remaining <= 0)) ? (
+              <p className="mt-2 text-xs text-gold">Friendly — not on the board</p>
+            ) : null}
             <div className="mt-5 flex gap-2">
               <Button className="flex-1" onClick={() => reset()}>
                 {mode === "online" ? "Rematch" : "Play again"}
