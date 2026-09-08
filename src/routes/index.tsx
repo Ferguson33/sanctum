@@ -3,10 +3,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Swords, Smartphone, Users } from "lucide-react";
 import { HeroLineup } from "@/components/chess/HeroLineup";
 import { Button } from "@/components/ui/button";
-import { getFaction } from "@/lib/chess/catalog";
 import { hostKey } from "@/lib/chess/net";
 import { AI_LEVELS, warmOpponent, type AiLevelId } from "@/lib/chess/opponent";
-import { usePrefs } from "@/lib/chess/prefs";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -17,7 +15,6 @@ type Panel = null | "ai" | "start" | "join";
 
 function Home() {
   const nav = useNavigate();
-  const prefs = usePrefs();
   const [code, setCode] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
   const [aiClock, setAiClock] = useState(300);
@@ -27,8 +24,6 @@ function Home() {
     { sec: 300, label: "5 min", blurb: "Each side" },
     { sec: 600, label: "10 min", blurb: "Each side" },
   ];
-
-  const myArmy = getFaction(prefs.wFaction);
 
   function toggle(next: Panel) {
     setPanel((cur) => (cur === next ? null : next));
@@ -175,9 +170,6 @@ function Home() {
               </form>
             )}
 
-            <p className="pt-1 text-center text-[11px] text-muted">
-              Last white seat: {myArmy.name} · armies chosen on the next screen
-            </p>
           </div>
         </div>
       </section>
