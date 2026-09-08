@@ -500,10 +500,12 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: max(1.4rem, env(safe-area-inset-bottom));
-  z-index: 2;
+  /* Sit above the 7vh letterbox so epithet / vs line are never clipped. */
+  bottom: max(calc(7vh + 0.65rem), calc(env(safe-area-inset-bottom) + 0.65rem));
+  z-index: 5;
   text-align: center;
   pointer-events: none;
+  padding: 0 1rem;
 }
 
 .parade-skip {
