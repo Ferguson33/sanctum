@@ -131,15 +131,6 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [phase, setPhase] = useState<Phase>("idle");
   const [pending, setPending] = useState<{ from: Square; to: Square } | null>(null);
   const [ending, setEnding] = useState<Ending>(null);
-  /** Checkmate highlight reel: off → playing → done (card). Resign/draw skip to done. */
-  const [reelPhase, setReelPhase] = useState<"off" | "playing" | "done">("off");
-  const [reel, setReel] = useState<{
-    clip: MoveRec[];
-    finalFen: string;
-    beforeFen: string;
-  } | null>(null);
-  const [reelStep, setReelStep] = useState(0);
-  const historyRef = useRef<MoveRec[]>([]);
   const [settings, setSettings] = useState(false);
   const [turn, setTurn] = useState<Side>("w");
   const [linked, setLinked] = useState(false);
@@ -158,7 +149,6 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const lastMoveRef = useRef(lastMove);
   handoffRef.current = handoff;
   lastMoveRef.current = lastMove;
-  historyRef.current = history;
 
   const [clockLimit, setClockLimit] = useState(() =>
     (mode === "online" || mode === "ai") && clockSec > 0 ? clockSec : 0,
@@ -391,113 +381,6 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setCallout(next);
     calloutTimer.current = window.setTimeout(() => setCallout(null), ms);
   }
-
-  function skipEndReel() {
-    const finalFen = reel?.finalFen ?? chessRef.current.fen();
-    const clip = reel?.clip;
-    setPieces(piecesFromFen(finalFen));
-    setFen(finalFen);
-    if (clip && clip.length) {
-      const last = clip[clip.length - 1];
-      setLastMove({ from: last.from, to: last.to, captured: Boolean(last.captured) });
-    }
-    setReel(null);
-    setReelStep(0);
-    setReelPhase("done");
-  }
-
-  // Start (or skip) the mate reel when a game ends.
-  useEffect(() => {
-    if (!ending) {
-      setReelPhase("off");
-      setReel(null);
-      setReelStep(0);
-      return;
-    }
-    if (ending.kind !== "checkmate") {
-      setReelPhase("done");
-      setReel(null);
-      return;
-    }
-    if (reelPhase !== "off") return;
-
-    const hist = historyRef.current;
-    const n = Math.min(3, hist.length);
-    if (n < 1) {
-      setReelPhase("done");
-      return;
-    }
-    const clip = hist.slice(-n);
-    const before = new Chess();
-    for (const m of hist.slice(0, -n)) {
-      const played = before.move({
-        from: m.from,
-        to: m.to,
-        promotion: m.promotion,
-      });
-      if (!played) {
-        setReelPhase("done");
-        return;
-      }
-    }
-    const finalFen = chessRef.current.fen();
-    const beforeFen = before.fen();
-    setReel({ clip, finalFen, beforeFen });
-    setReelStep(0);
-    setReelPhase("playing");
-    setPieces(piecesFromFen(beforeFen));
-    setFen(beforeFen);
-    setLastMove(null);
-    setSelected(null);
-    setLegal([]);
-    setCastleRooks([]);
-    setCaps([]);
-  }, [ending, reelPhase]);
-
-  // Step the mate reel forward on a timer.
-  useEffect(() => {
-    if (reelPhase !== "playing" || !reel) return;
-    const { clip, finalFen } = reel;
-    const applyIx = reelStep;
-    const wait = applyIx === 0 ? 550 : 820;
-    const id = window.setTimeout(() => {
-      if (applyIx >= clip.length) {
-        setPieces(piecesFromFen(finalFen));
-        setFen(finalFen);
-        const last = clip[clip.length - 1];
-        setLastMove({ from: last.from, to: last.to, captured: Boolean(last.captured) });
-        setReel(null);
-        setReelPhase("done");
-        return;
-      }
-      const m = clip[applyIx];
-      setPieces((ps) => applyMoveToPieces(ps, m));
-      window.setTimeout(() => {
-        // Keep sprites honest mid-reel without reshuffling ids across the clip.
-        setPieces((ps) => {
-          const mid = new Chess(reel.beforeFen);
-          for (let i = 0; i <= applyIx; i++) {
-            mid.move({ from: clip[i].from, to: clip[i].to, promotion: clip[i].promotion });
-          }
-          return reconcilePieces(ps, mid.fen());
-        });
-      }, 260);
-      setLastMove({ from: m.from, to: m.to, captured: Boolean(m.captured) });
-      setFen((() => {
-        const mid = new Chess(reel.beforeFen);
-        for (let i = 0; i <= applyIx; i++) {
-          mid.move({ from: clip[i].from, to: clip[i].to, promotion: clip[i].promotion });
-        }
-        return mid.fen();
-      })());
-      const kind = m.captured ? "capture" : "move";
-      if (prefs.sound) playMoveSound(kind);
-      playHaptic(kind === "capture" ? "capture" : "move", prefs.haptic);
-      setReelStep((s) => s + 1);
-    }, wait);
-    return () => window.clearTimeout(id);
-  }, [reelPhase, reel, reelStep, prefs.sound, prefs.haptic]);
-
 
   useEffect(() => {
     if ((mode !== "online" && mode !== "ai") || ending || handoff !== "idle" || parade) return;
@@ -839,9 +722,6 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setCaps([]);
     setPending(null);
     setEnding(null);
-    setReel(null);
-    setReelStep(0);
-    setReelPhase("off");
     setPhase("idle");
     setTurn(chess.turn());
     setHandoff("idle");
@@ -1072,7 +952,6 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           disabled={
             thinking ||
             phase === "over" ||
-            reelPhase === "playing" ||
             handoff === "ready" ||
             handoff === "sending" ||
             (myColor !== "both" && turn !== myColor)
@@ -1205,29 +1084,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </button>
       )}
 
-      {reelPhase === "playing" && (
-        <div className="pointer-events-none absolute inset-x-0 top-[18%] z-40 flex justify-center px-4">
-          <p className="rounded-full border border-border bg-bg/80 px-4 py-1.5 text-xs uppercase tracking-[0.22em] text-gold backdrop-blur">
-            Finishing blow
-          </p>
-        </div>
-      )}
-
-      {reelPhase === "playing" && (
-        <div className="absolute inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(1.2rem,env(safe-area-inset-bottom))] pt-2">
-          <Button
-            type="button"
-            variant="subtle"
-            size="lg"
-            className="pointer-events-auto min-w-[10rem]"
-            onClick={skipEndReel}
-          >
-            Skip
-          </Button>
-        </div>
-      )}
-
-      {ending && reelPhase === "done" && handoff !== "ready" && handoff !== "sending" && (
+      {ending && handoff !== "ready" && handoff !== "sending" && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/70 p-4">
           <div className="panel w-full max-w-sm rounded-[28px] p-6 text-center">
             <p className="font-display text-3xl">{endTitle(ending, wFaction.name, bFaction.name)}</p>
