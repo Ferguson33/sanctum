@@ -142,6 +142,53 @@ export function piecesFromFen(fen: string): LivePiece[] {
   return out;
 }
 
+/**
+ * Rebuild from FEN but keep React keys stable.
+ * Scan-order ids in piecesFromFen reshuffle after every ply, so sibling pawns
+ * steal each other's component instances and CSS-slide across the board.
+ */
+export function reconcilePieces(prev: LivePiece[], fen: string): LivePiece[] {
+  const desired = piecesFromFen(fen);
+  const pool = [...prev];
+  const matched: Array<LivePiece | null> = desired.map(() => null);
+
+  // 1) Still on the same square (most pieces).
+  desired.forEach((want, idx) => {
+    const i = pool.findIndex(
+      (p) => p.square === want.square && p.color === want.color && p.type === want.type,
+    );
+    if (i >= 0) matched[idx] = pool.splice(i, 1)[0];
+  });
+
+  // 2) Same unit, new square (the mover / castling rook).
+  desired.forEach((want, idx) => {
+    if (matched[idx]) return;
+    const i = pool.findIndex((p) => p.color === want.color && p.type === want.type);
+    if (i >= 0) {
+      const [p] = pool.splice(i, 1);
+      matched[idx] = { ...p, square: want.square, type: want.type };
+    }
+  });
+
+  // 3) Promotion: same square + color, type changed.
+  desired.forEach((want, idx) => {
+    if (matched[idx]) return;
+    const i = pool.findIndex((p) => p.square === want.square && p.color === want.color);
+    if (i >= 0) {
+      const [p] = pool.splice(i, 1);
+      matched[idx] = { ...p, square: want.square, type: want.type };
+    }
+  });
+
+  return desired.map((want, idx) => {
+    if (matched[idx]) return matched[idx]!;
+    return {
+      ...want,
+      id: `${want.color}-${want.type}-${Math.random().toString(36).slice(2, 9)}`,
+    };
+  });
+}
+
 /** Apply a move to a live piece list, keeping ids stable so CSS can tween. */
 /** True castling only — never treat a random flag substring as O-O. */
 export function castleSideOf(move: MoveRec): "k" | "q" | null {
