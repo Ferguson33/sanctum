@@ -38,7 +38,8 @@ export type NetMsg =
   | { t: "have"; ply: number }
   | { t: "resign" }
   | { t: "reset"; fen: string }
-  | { t: "theme"; setId: string; boardId: string; wFaction?: string; bFaction?: string };
+  | { t: "theme"; setId: string; boardId: string; wFaction?: string; bFaction?: string }
+  | { t: "table"; w: string; b: string; board: string };
 
 export function isNetMsg(v: unknown): v is NetMsg {
   return !!v && typeof v === "object" && "t" in v && typeof (v as { t: unknown }).t === "string";

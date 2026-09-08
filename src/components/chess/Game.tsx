@@ -338,20 +338,19 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   }, [linked, mode]); // eslint-disable-line
 
   // Announce signed-in seat once so the peer can record W–L.
+  const announcedSeat = useRef(false);
   useEffect(() => {
     if (mode !== "online" || !localProfile?.id) return;
-    try {
-      p2p.send({
-        t: "hello",
-        host,
-        name: localProfile.displayName,
-        profileId: localProfile.id,
-        profileName: localProfile.displayName,
-      } satisfies NetMsg);
-    } catch {
-      /* */
-    }
-  }, [mode, localProfile?.id, localProfile?.displayName, host, p2p]);
+    if (announcedSeat.current) return;
+    announcedSeat.current = true;
+    p2p.send({
+      t: "hello",
+      host,
+      name: localProfile.displayName,
+      profileId: localProfile.id,
+      profileName: localProfile.displayName,
+    } satisfies NetMsg);
+  }, [mode, localProfile?.id, localProfile?.displayName, host, p2p.send]);
 
   // Record decisive online results once when both seats are known.
   useEffect(() => {
@@ -710,6 +709,16 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
     const chess = chessRef.current;
     if (msg.t === "hello") return;
+    if (msg.t === "table") {
+      const next = parseTable(msg);
+      if (!next) return;
+      setTable((cur) => ({
+        w: next.w || cur.w,
+        b: next.b || cur.b,
+        board: next.board || cur.board,
+      }));
+      return;
+    }
     if (msg.t === "sync") {
       if (plyOfFen(msg.fen) < plyOfFen(chess.fen())) return;
       chess.load(msg.fen);
@@ -982,16 +991,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   function sitBlack() {
     const id = otherFaction(table.w, draftBlack);
-    setTable((cur) => ({ ...cur, b: id }));
+    const next = { w: table.w, b: id, board: table.board };
+    setTable(next);
     prefs.setBFaction(id);
-    if (room) {
-      void publishMailbox(room, selfId ?? "guest", {
-        t: "table",
-        w: table.w,
-        b: id,
-        board: table.board,
-      }).catch(() => {});
-    }
+    p2p.send({ t: "table", ...next } satisfies NetMsg);
+    p2p.send({
+      t: "theme",
+      setId: prefs.setId,
+      boardId: next.board,
+      wFaction: next.w,
+      bFaction: next.b,
+    } satisfies NetMsg);
   }
 
   async function shareRoom() {

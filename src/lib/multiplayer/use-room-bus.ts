@@ -2,7 +2,7 @@
  * Turn-based room bus. Phones publish hellos and moves straight to the
  * shared mailbox so a Vercel hop cannot drop the second ply.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   payloadKey,
   publishMailbox,
@@ -180,14 +180,17 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     [],
   );
 
-  return {
-    selfId,
-    room,
-    peers,
-    joined,
-    table,
-    broadcast: send,
-    send,
-    onMessage,
-  };
+  return useMemo(
+    () => ({
+      selfId,
+      room,
+      peers,
+      joined,
+      table,
+      broadcast: send,
+      send,
+      onMessage,
+    }),
+    [selfId, room, peers, joined, table, send, onMessage],
+  );
 }
