@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Profile, Standing, MatchRow } from "./types";
+import type { Profile, Standing, MatchRow, GameRow } from "./types";
+
+export type { GameRow };
 
 export type PublicProfile = Pick<Profile, "id" | "displayName" | "crestFaction" | "crestPiece">;
 
@@ -95,3 +97,57 @@ export function useProfile() {
 
   return { profile, loading, error, refresh, setProfile };
 }
+
+
+async function gamesFetch<T>(
+  op: string,
+  body?: Record<string, unknown>,
+  method: "GET" | "POST" = body ? "POST" : "GET",
+): Promise<T> {
+  const url =
+    method === "GET"
+      ? `/api/games?op=${encodeURIComponent(op)}${
+          body?.room ? `&room=${encodeURIComponent(String(body.room))}` : ""
+        }`
+      : "/api/games";
+  const res = await fetch(url, {
+    method,
+    credentials: "include",
+    headers: body && method === "POST" ? { "content-type": "application/json" } : undefined,
+    body: body && method === "POST" ? JSON.stringify({ op, ...body }) : undefined,
+  });
+  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || `games ${op} failed`);
+  }
+  return data;
+}
+
+export function fetchMyGames() {
+  return gamesFetch<{ games: GameRow[] }>("listMine");
+}
+
+export function fetchGameByRoom(room: string) {
+  return gamesFetch<{ game: GameRow | null }>("getByRoom", { room }, "GET");
+}
+
+export function upsertGameClient(input: {
+  room: string;
+  fen: string;
+  ply: number;
+  wFaction: string;
+  bFaction: string;
+  board: string;
+  clockLimitSec?: number | null;
+  clockWMs?: number | null;
+  clockBMs?: number | null;
+  asHost: boolean;
+  peerProfileId?: string | null;
+}) {
+  return gamesFetch<{ ok: boolean; game?: GameRow; error?: string }>("upsert", input);
+}
+
+export function finishGameClient(room: string) {
+  return gamesFetch<{ ok: boolean; game?: GameRow; error?: string }>("finish", { room });
+}
+

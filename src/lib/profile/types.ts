@@ -18,3 +18,23 @@ export type MatchRow = {
   room: string | null;
   endedAt: string;
 };
+
+/** Persisted in-progress (or finished) online duel for My games. */
+export type GameRow = {
+  id: string;
+  room: string;
+  fen: string;
+  ply: number;
+  wFaction: string;
+  bFaction: string;
+  board: string;
+  clockLimitSec: number | null;
+  clockWMs: number | null;
+  clockBMs: number | null;
+  whiteProfileId: string | null;
+  blackProfileId: string | null;
+  status: "open" | "finished";
+  updatedAt: string;
+  /** Seat relative to the signed-in profile when listed via listMine. */
+  mySide?: "w" | "b";
+};

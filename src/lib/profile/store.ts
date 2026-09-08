@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { hashPin, verifyPin } from "./pin";
-import type { MatchRow, Profile, Standing } from "./types";
+import type { GameRow, MatchRow, Profile, Standing } from "./types";
 
-export type { MatchRow, Profile, Standing } from "./types";
+export type { GameRow, MatchRow, Profile, Standing } from "./types";
 
 type ProfileRow = {
   id: string;
@@ -203,4 +203,254 @@ export async function recordMatch(input: {
     throw err;
   }
   return { ok: true, id };
+}
+
+
+type GameDbRow = {
+  id: string;
+  room: string;
+  fen: string;
+  ply: number;
+  w_faction: string;
+  b_faction: string;
+  board: string;
+  clock_limit_sec: number | null;
+  clock_w_ms: number | null;
+  clock_b_ms: number | null;
+  white_profile_id: string | null;
+  black_profile_id: string | null;
+  status: string;
+  updated_at: string | Date;
+};
+
+function toGameRow(row: GameDbRow, profileId?: string): GameRow {
+  let mySide: "w" | "b" | undefined;
+  if (profileId) {
+    if (row.white_profile_id === profileId) mySide = "w";
+    else if (row.black_profile_id === profileId) mySide = "b";
+  }
+  return {
+    id: row.id,
+    room: row.room,
+    fen: row.fen,
+    ply: Number(row.ply) || 0,
+    wFaction: row.w_faction,
+    bFaction: row.b_faction ?? "",
+    board: row.board,
+    clockLimitSec: row.clock_limit_sec == null ? null : Number(row.clock_limit_sec),
+    clockWMs: row.clock_w_ms == null ? null : Number(row.clock_w_ms),
+    clockBMs: row.clock_b_ms == null ? null : Number(row.clock_b_ms),
+    whiteProfileId: row.white_profile_id,
+    blackProfileId: row.black_profile_id,
+    status: row.status === "finished" ? "finished" : "open",
+    updatedAt: String(row.updated_at),
+    ...(mySide ? { mySide } : {}),
+  };
+}
+
+const GAME_SELECT = `id, room, fen, ply, w_faction, b_faction, board,
+  clock_limit_sec, clock_w_ms, clock_b_ms,
+  white_profile_id, black_profile_id, status, updated_at`;
+
+/** Open games where the profile sits white or black. */
+export async function listMineGames(profileId: string): Promise<GameRow[]> {
+  const sql = await getSql();
+  const rows = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT}
+     from sanctum.games
+     where status = 'open'
+       and (white_profile_id = $1 or black_profile_id = $1)
+     order by updated_at desc
+     limit 40`,
+    [profileId],
+  );
+  return rows.map((r) => toGameRow(r, profileId));
+}
+
+export async function getGameByRoom(
+  room: string,
+  profileId?: string | null,
+): Promise<GameRow | null> {
+  const sql = await getSql();
+  const code = room.trim().toUpperCase();
+  if (!code) return null;
+  const rows = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT} from sanctum.games where room = $1 limit 1`,
+    [code],
+  );
+  if (!rows.length) return null;
+  return toGameRow(rows[0], profileId ?? undefined);
+}
+
+export type UpsertGameInput = {
+  room: string;
+  fen: string;
+  ply: number;
+  wFaction: string;
+  bFaction: string;
+  board: string;
+  clockLimitSec?: number | null;
+  clockWMs?: number | null;
+  clockBMs?: number | null;
+  /** Host (white) must create the first row when signed in. */
+  asHost: boolean;
+  /** Peer profile id when known (black if host, white if guest). */
+  peerProfileId?: string | null;
+};
+
+/**
+ * Idempotent upsert by room. Creates only when the signed-in host creates the
+ * saved row; later either seated profile may update fen/clocks/peer id.
+ */
+export async function upsertGame(
+  profileId: string,
+  input: UpsertGameInput,
+): Promise<{ ok: true; game: GameRow } | { ok: false; error: string; status?: number }> {
+  const room = input.room.trim().toUpperCase();
+  if (!room || room.length < 4 || room.length > 32) {
+    return { ok: false, error: "invalid room", status: 400 };
+  }
+  if (!input.fen || !input.wFaction || !input.board) {
+    return { ok: false, error: "missing board state", status: 400 };
+  }
+  const sql = await getSql();
+  const existing = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT} from sanctum.games where room = $1 limit 1`,
+    [room],
+  );
+
+  const clockLimit =
+    input.clockLimitSec == null || input.clockLimitSec <= 0 ? null : Math.floor(input.clockLimitSec);
+  const clockW = input.clockWMs == null ? null : Math.max(0, Math.floor(input.clockWMs));
+  const clockB = input.clockBMs == null ? null : Math.max(0, Math.floor(input.clockBMs));
+  const ply = Math.max(0, Math.floor(input.ply) || 0);
+  const bFaction = input.bFaction || "";
+  const peer = input.peerProfileId?.trim() || null;
+
+  if (!existing.length) {
+    // Prefer requiring host profile to create the saved row.
+    if (!input.asHost) {
+      return { ok: false, error: "host must start the saved game", status: 403 };
+    }
+    const id = randomUUID();
+    const whiteId = profileId;
+    const blackId = peer && peer !== whiteId ? peer : null;
+    await sql.query(
+      `insert into sanctum.games (
+         id, room, fen, ply, w_faction, b_faction, board,
+         clock_limit_sec, clock_w_ms, clock_b_ms,
+         white_profile_id, black_profile_id, status, updated_at
+       ) values (
+         $1, $2, $3, $4, $5, $6, $7,
+         $8, $9, $10,
+         $11, $12, 'open', now()
+       )`,
+      [
+        id,
+        room,
+        input.fen,
+        ply,
+        input.wFaction,
+        bFaction,
+        input.board,
+        clockLimit,
+        clockW,
+        clockB,
+        whiteId,
+        blackId,
+      ],
+    );
+    const created = await getGameByRoom(room, profileId);
+    if (!created) return { ok: false, error: "create failed", status: 500 };
+    return { ok: true, game: created };
+  }
+
+  const row = existing[0];
+  if (row.status === "finished") {
+    return { ok: false, error: "game already finished", status: 409 };
+  }
+
+  const isWhite = row.white_profile_id === profileId;
+  const isBlack = row.black_profile_id === profileId;
+  // Allow guest seat to claim black when still open and caller is not white.
+  const claimBlack =
+    !isWhite &&
+    !isBlack &&
+    !input.asHost &&
+    (row.black_profile_id == null || row.black_profile_id === "");
+
+  if (!isWhite && !isBlack && !claimBlack) {
+    return { ok: false, error: "not your game", status: 403 };
+  }
+
+  let nextWhite = row.white_profile_id;
+  let nextBlack = row.black_profile_id;
+  if (claimBlack) nextBlack = profileId;
+  if (input.asHost && peer && peer !== nextWhite) {
+    if (!nextBlack || nextBlack === peer) nextBlack = peer;
+  }
+  if (!input.asHost && peer && peer !== nextBlack) {
+    if (!nextWhite || nextWhite === peer) nextWhite = peer;
+  }
+
+  await sql.query(
+    `update sanctum.games set
+       fen = $2,
+       ply = $3,
+       w_faction = $4,
+       b_faction = $5,
+       board = $6,
+       clock_limit_sec = $7,
+       clock_w_ms = $8,
+       clock_b_ms = $9,
+       white_profile_id = $10,
+       black_profile_id = $11,
+       updated_at = now()
+     where room = $1 and status = 'open'`,
+    [
+      room,
+      input.fen,
+      ply,
+      input.wFaction,
+      bFaction || row.b_faction,
+      input.board,
+      clockLimit,
+      clockW,
+      clockB,
+      nextWhite,
+      nextBlack,
+    ],
+  );
+  const updated = await getGameByRoom(room, profileId);
+  if (!updated) return { ok: false, error: "update failed", status: 500 };
+  return { ok: true, game: updated };
+}
+
+/** Mark an open game finished (keeps row for audit; My games lists open only). */
+export async function finishGame(
+  profileId: string,
+  room: string,
+): Promise<{ ok: true; game: GameRow } | { ok: false; error: string; status?: number }> {
+  const code = room.trim().toUpperCase();
+  if (!code) return { ok: false, error: "invalid room", status: 400 };
+  const sql = await getSql();
+  const rows = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT} from sanctum.games where room = $1 limit 1`,
+    [code],
+  );
+  if (!rows.length) return { ok: false, error: "not found", status: 404 };
+  const row = rows[0];
+  if (row.white_profile_id !== profileId && row.black_profile_id !== profileId) {
+    return { ok: false, error: "not your game", status: 403 };
+  }
+  if (row.status === "finished") {
+    return { ok: true, game: toGameRow(row, profileId) };
+  }
+  await sql.query(
+    `update sanctum.games set status = 'finished', updated_at = now() where room = $1`,
+    [code],
+  );
+  const done = await getGameByRoom(code, profileId);
+  if (!done) return { ok: false, error: "finish failed", status: 500 };
+  return { ok: true, game: done };
 }
