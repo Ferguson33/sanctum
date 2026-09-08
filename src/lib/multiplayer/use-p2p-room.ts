@@ -19,7 +19,7 @@ export interface P2PRoomHandle {
   joined: boolean;
   table: { w: string; b: string; board: string } | null;
   broadcast: (data: unknown) => void;
-  send: (data: unknown, peerId?: string) => void;
+  send: (data: unknown, peerId?: string) => void | Promise<void>;
   onMessage: (
     fn: (from: string, data: unknown, channel: "state" | "reliable") => void,
   ) => () => void;

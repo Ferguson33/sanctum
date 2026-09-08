@@ -141,16 +141,12 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     void poll();
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake);
-    const beat = setInterval(() => {
-      if (!linkedRef.current) void hello();
-    }, 3000);
     const slow = setInterval(() => {
-      if (linkedRef.current) void hello();
+      void hello();
     }, 20_000);
     return () => {
       closed.current = true;
       if (timer) clearTimeout(timer);
-      clearInterval(beat);
       clearInterval(slow);
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("focus", wake);
@@ -162,10 +158,9 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     (data: unknown) => {
       const key = payloadKey(data);
       if (key) seenKeys.current.add(key);
-      // Queue publishes so End-turn + have acks don't race into ntfy 429s.
-      sendChain.current = sendChain.current
-        .then(() => sendWithRetry(room, selfId, data))
-        .catch(() => {});
+      const job = sendChain.current.then(() => sendWithRetry(room, selfId, data));
+      sendChain.current = job.catch(() => {});
+      return job;
     },
     [room, selfId],
   );

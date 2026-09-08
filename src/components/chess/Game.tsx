@@ -593,23 +593,13 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           ? { profileId: localProfile.id, profileName: localProfile.displayName }
           : {}),
       };
-      p2p.send(msg);
+      void Promise.resolve(p2p.send(msg)).then(() => {
+        if (handoffRef.current === "sending") setHandoff("theirs");
+      });
     };
-    // ntfy.sh 429s after ~15–20 pubs in a short burst. One shot + sparse retries.
     push();
-    const timers = [1200, 3000, 7000, 14000].map((ms) => window.setTimeout(push, ms));
-    const id = window.setInterval(push, 16_000);
-    const onWake = () => {
-      if (document.visibilityState === "visible") push();
-    };
-    document.addEventListener("visibilitychange", onWake);
-    window.addEventListener("focus", onWake);
-    return () => {
-      for (const tm of timers) window.clearTimeout(tm);
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onWake);
-      window.removeEventListener("focus", onWake);
-    };
+    const retry = window.setTimeout(push, 4000);
+    return () => window.clearTimeout(retry);
   }, [handoff, mode]); // eslint-disable-line
 
   const canMove = useCallback(

@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { parseTable, type TableWire } from "@/lib/chess/net";
 import type { PeerRow } from "./p2p";
+import { readLive, writeLive } from "./live-store";
 
 const ID = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
 const pubSchema = z.object({
@@ -211,7 +212,17 @@ async function handleGet(url: URL): Promise<Response> {
     });
   if (!parsed.success) return json({ error: "invalid query" }, 400);
   const { room, peer, since } = parsed.data;
-  const envs = await loadRoom(room);
+  let envs: Envelope[] = [];
+  try {
+    envs = await loadRoom(room);
+  } catch (err) {
+    console.warn("[rtc] mailbox poll missed", err);
+    envs = remoteCache().get(room) ?? store().rooms.get(room) ?? [];
+  }
+  const live = await readLive(room);
+  if (live && !envs.some((e) => e.id === live.id)) {
+    envs = [...envs, live];
+  }
   const seen = new Set<string>();
   const messages: Envelope[] = [];
   let pass = since === "0" || since === "" || !envs.some((e) => e.id === since);
@@ -248,14 +259,20 @@ async function handlePost(request: Request): Promise<Response> {
     msg.op === "table" ? { t: "table", w: msg.w, b: msg.b, board: msg.board } : msg.payload;
   const from = msg.op === "table" ? "table" : msg.from;
   appendLocal(msg.room, from, payload);
+  let stored = false;
+  try {
+    await writeLive(msg.room, from, payload);
+    stored = true;
+  } catch (err) {
+    console.warn("[rtc] live snapshot missed", err);
+  }
   try {
     await publishRemote(msg.room, from, payload);
+    stored = true;
   } catch (err) {
     console.warn("[rtc] remote publish missed", err);
-    // Production relies on ntfy (local log is per-instance). Surface the miss
-    // so the client retry path actually runs instead of assuming success.
-    return json({ error: "mailbox publish failed", ok: false }, 502);
   }
+  if (!stored) return json({ error: "mailbox publish failed", ok: false }, 502);
   return json({ ok: true });
 }
 

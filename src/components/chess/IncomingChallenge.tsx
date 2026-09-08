@@ -35,6 +35,7 @@ export function openChallenge(
 
 export function useIncomingGames() {
   const { profile } = useProfile();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [games, setGames] = useState<GameRow[]>([]);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function useIncomingGames() {
     }
     let alive = true;
     const tick = async () => {
+      if (pathname.toUpperCase().includes("/R/")) return;
       try {
         const { games: rows } = await fetchMyGames();
         if (!alive) return;
@@ -58,7 +60,7 @@ export function useIncomingGames() {
       alive = false;
       window.clearInterval(id);
     };
-  }, [profile?.id]);
+  }, [profile?.id, pathname]);
 
   const live = games.find((g) => g.challenge === "live") ?? null;
   const later = games.filter((g) => g.challenge !== "live");
