@@ -133,7 +133,7 @@ export function ArmyPick({
   onSit?: () => void;
   sitLabel?: string;
   note?: string;
-  /** Host already sat — not offered to the other throne. */
+  /** Army already chosen — not offered to the other side. */
   taken?: string;
 }) {
   const faction = getFaction(selected);
@@ -167,7 +167,7 @@ export function ArmyPick({
               )}
             >
               {pieceImg(f, "k", "h-12 w-auto sm:h-14 object-contain object-bottom")}
-              <span className="mt-2 text-xs font-medium">{sat ? "Sat" : f.name}</span>
+              <span className="mt-2 text-xs font-medium">{sat ? "Taken" : f.name}</span>
             </button>
           );
         })}
@@ -182,7 +182,7 @@ export function ArmyPick({
       </div>
       {onSit ? (
         <Button size="lg" className="w-full" onClick={onSit}>
-          {sitLabel ?? `Sit as ${faction.name}`}
+          {sitLabel ?? `Play as ${faction.name}`}
         </Button>
       ) : null}
       {card ? (
