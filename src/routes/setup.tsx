@@ -14,12 +14,13 @@ type Mode = "local" | "ai" | "duel";
 export const Route = createFileRoute("/setup")({
   validateSearch: (
     raw: Record<string, unknown>,
-  ): { mode?: string; lvl?: string; clock?: string; vs?: string; seat?: string } => ({
+  ): { mode?: string; lvl?: string; clock?: string; vs?: string; seat?: string; live?: string } => ({
     ...(typeof raw.mode === "string" ? { mode: raw.mode } : {}),
     ...(typeof raw.lvl === "string" ? { lvl: raw.lvl } : {}),
     ...(typeof raw.clock === "string" ? { clock: raw.clock } : {}),
     ...(typeof raw.vs === "string" ? { vs: raw.vs } : {}),
     ...(typeof raw.seat === "string" ? { seat: raw.seat } : {}),
+    ...(typeof raw.live === "string" ? { live: raw.live } : {}),
   }),
   component: SetupPage,
 });
@@ -38,7 +39,9 @@ function SetupPage() {
   const level = getAiLevel(search.lvl).id as AiLevelId;
   const vsId = search.vs?.trim() || "";
   const seatName = search.seat?.trim() || "";
+  const liveSeat = Boolean(vsId) && search.live === "1";
   const clockSec = (() => {
+    if (mode === "duel" && vsId && !liveSeat) return 0;
     const n = Number(search.clock);
     return Number.isFinite(n) && n > 0 ? Math.min(3600, Math.floor(n)) : 0;
   })();
@@ -49,19 +52,36 @@ function SetupPage() {
   const vsSeat = mode === "duel" && Boolean(vsId);
 
   const title =
-    mode === "ai" ? "Play AI" : mode === "duel" ? (vsSeat ? "Duel a seat" : "Invite a guest") : "Pass and play";
+    mode === "ai"
+      ? "Play AI"
+      : mode === "duel"
+        ? vsSeat
+          ? liveSeat
+            ? "Live duel"
+            : "Challenge later"
+          : "Invite a guest"
+        : "Pass and play";
   const subtitle =
     mode === "ai"
       ? `${getAiLevel(level).name}${clockSec ? ` · ${Math.round(clockSec / 60)} min` : " · no clock"}`
       : mode === "duel"
         ? vsSeat
-          ? `${seatName || "Their seat"} · you play white`
+          ? liveSeat
+            ? `${seatName || "Their seat"} · they’re in the app${clockSec ? ` · ${Math.round(clockSec / 60)} min` : ""}`
+            : `${seatName || "Their seat"} · no clock · they pick it up on My games`
           : clockSec
             ? `${Math.round(clockSec / 60)} min each · link for a guest`
             : "No clock · link for a guest"
         : "Same phone · both armies";
 
-  const cta = mode === "duel" ? (vsSeat ? `Challenge ${seatName || "seat"}` : "Send link") : "Begin match";
+  const cta =
+    mode === "duel"
+      ? vsSeat
+        ? liveSeat
+          ? `Call ${seatName || "them"}`
+          : `Challenge ${seatName || "seat"} later`
+        : "Send link"
+      : "Begin match";
 
   function begin() {
     if (mode === "duel") {
@@ -75,9 +95,10 @@ function SetupPage() {
           wFaction: prefs.wFaction,
           bFaction: "",
           board: prefs.boardId,
-          clockLimitSec: clockSec > 0 ? clockSec : null,
+          clockLimitSec: liveSeat && clockSec > 0 ? clockSec : null,
           asHost: true,
           peerProfileId: vsId,
+          challenge: liveSeat ? "live" : "later",
         }).catch(() => {});
       }
       void nav({
@@ -87,8 +108,9 @@ function SetupPage() {
           w: prefs.wFaction,
           board: prefs.boardId,
           open: "1",
-          ...(clockSec > 0 ? { clock: String(clockSec) } : {}),
+          ...(liveSeat && clockSec > 0 ? { clock: String(clockSec) } : {}),
           ...(seatName ? { seat: seatName } : {}),
+          ...(vsSeat ? { kind: liveSeat ? "live" : "later" } : {}),
         },
       });
       return;
@@ -128,7 +150,7 @@ function SetupPage() {
       <div className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto px-5 pb-36 pt-2">
         <p className="mb-6 text-sm text-pretty text-muted">
           Pick the armies and board for this match. Nothing starts until you{" "}
-          {mode === "duel" ? (vsSeat ? "challenge their seat" : "send the link") : "begin"}.
+          {mode === "duel" ? (vsSeat ? (liveSeat ? "call them to the table" : "send the later challenge") : "send the link") : "begin"}.
         </p>
 
         <ArmyPick
@@ -136,7 +158,9 @@ function SetupPage() {
           note={
             mode === "duel"
               ? vsSeat
-                ? `${seatName || "They"} will see this on My games and pick a different army.`
+                ? liveSeat
+                  ? `${seatName || "They"} must accept in Sanctum in the next minute. Clock starts when both of you are sitting.`
+                  : `${seatName || "They"} will see this on My games. No clock.`
                 : "You play white. They pick a different army from the link."
               : "Tap an army to inspect king through pawn."
           }

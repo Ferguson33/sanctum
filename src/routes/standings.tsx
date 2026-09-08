@@ -101,7 +101,7 @@ function StandingsPage() {
         </header>
 
         <p className="text-sm text-pretty text-muted">
-          Wins and losses from linked online duels. Tap a seat to duel them — they see it under My games, no link.
+          Wins and losses. Live = both of you in the app (clock ok). Later = they pick it up on My games, no clock.
         </p>
 
         {loading ? (
@@ -196,21 +196,54 @@ function StandingsPage() {
               <p className="mt-3 text-sm text-muted">Could not load head-to-head.</p>
             )}
             {profile && selected.id !== profile.id ? (
-              <Button
-                className="mt-3 w-full"
-                onClick={() =>
-                  void nav({
-                    to: "/setup",
-                    search: {
-                      mode: "duel",
-                      vs: selected.id,
-                      seat: selected.displayName,
-                    },
-                  })
-                }
-              >
-                Duel {selected.displayName}
-              </Button>
+              <div className="mt-4 flex flex-col gap-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Live — both of you in the app</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { sec: 0, label: "No clock" },
+                    { sec: 180, label: "3 min" },
+                    { sec: 300, label: "5 min" },
+                    { sec: 600, label: "10 min" },
+                  ].map((c) => (
+                    <button
+                      key={`live-${c.sec}`}
+                      type="button"
+                      onClick={() =>
+                        void nav({
+                          to: "/setup",
+                          search: {
+                            mode: "duel",
+                            vs: selected.id,
+                            seat: selected.displayName,
+                            live: "1",
+                            ...(c.sec > 0 ? { clock: String(c.sec) } : {}),
+                          },
+                        })
+                      }
+                      className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
+                    >
+                      <span className="font-display block text-lg leading-none">{c.label}</span>
+                      <span className="mt-1 block text-xs text-muted">They accept now</span>
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() =>
+                    void nav({
+                      to: "/setup",
+                      search: {
+                        mode: "duel",
+                        vs: selected.id,
+                        seat: selected.displayName,
+                      },
+                    })
+                  }
+                >
+                  Challenge later — no clock
+                </Button>
+              </div>
             ) : null}
             <Button variant="ghost" className="mt-2 w-full" onClick={() => setSelected(null)}>
               Close

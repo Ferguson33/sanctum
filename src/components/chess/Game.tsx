@@ -53,6 +53,7 @@ import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
 import {
   fetchGameByRoom,
   finishGameClient,
+  deferGameLaterClient,
   recordMatchClient,
   upsertGameClient,
   useProfile,
@@ -81,6 +82,7 @@ interface GameProps {
   clockSec?: number;
   /** Display name when this duel was sent to a leaderboard seat. */
   inviteSeat?: string;
+  inviteKind?: "live" | "later";
 }
 
 export function Game(props: GameProps) {
@@ -110,7 +112,7 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
   }
 }
 
-function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight", clockSec = 0, inviteSeat }: GameProps) {
+function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight", clockSec = 0, inviteSeat, inviteKind }: GameProps) {
   const prefs = usePrefs();
   const [table, setTable] = useState<TableWire>(() => {
     if (invite?.w) return { w: invite.w, b: invite.b, board: invite.board };
@@ -145,6 +147,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
   const [sendStuck, setSendStuck] = useState(false);
+  const [liveLeft, setLiveLeft] = useState(inviteKind === "live" ? 90 : 0);
+  const [liveMissed, setLiveMissed] = useState(false);
+  const [seatKind, setSeatKind] = useState(inviteKind);
   const [callout, setCallout] = useState<Callout>(null);
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
   const didParade = useRef(mode === "local" || mode === "ai");
@@ -223,6 +228,22 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setParade(true);
   }, [mode, seated]);
 
+  useEffect(() => {
+    if (inviteKind !== "live" || seated || !host) return;
+    if (liveMissed) return;
+    const id = window.setInterval(() => {
+      setLiveLeft((n) => {
+        if (n <= 1) {
+          window.clearInterval(id);
+          setLiveMissed(true);
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [inviteKind, seated, host, liveMissed]);
+
   // Clocks: online only after handoff idle (turn pushed); AI on the side to move.
   // Debit chessRef.turn() each tick so React turn lag cannot leave White running forever.
   useEffect(() => {
@@ -230,6 +251,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (mode === "online") {
       if (handoff !== "idle") return;
       if (!seated) return;
+      if (!linked) return;
     } else if (mode !== "ai") {
       return;
     }
@@ -255,7 +277,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       });
     }, 250);
     return () => window.clearInterval(id);
-  }, [clockLimit, parade, ending, phase, handoff, seated, mySide, p2p, mode, turn]);
+  }, [clockLimit, parade, ending, phase, handoff, seated, linked, mySide, p2p, mode, turn]);
 
   useEffect(() => {
     if (mode === "local") return;
@@ -1321,14 +1343,23 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       {mode === "online" && !seated && host && (
         <div className="absolute inset-0 z-40 flex items-end justify-center bg-bg/70 p-4 pb-10">
           <div className="panel w-full max-w-md rounded-[28px] p-5 text-center">
-            <p className="text-xs uppercase tracking-[0.22em] text-gold">You started the duel</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-gold">
+              {seatKind === "live" ? "Live call" : seatKind === "later" ? "Later challenge" : "You started the duel"}
+            </p>
             <p className="font-display mt-1 text-4xl">{wFaction.name}</p>
             <p className="mt-3 font-display text-3xl tracking-[0.18em] text-ivory">{room}</p>
             <p className="mt-2 text-sm text-muted text-pretty">
-              {inviteSeat
-                ? `${inviteSeat} will see this under My games. They open Sanctum from the icon — no link.`
-                : "Share the link (or read them the code). They tap Enter a code, pick an army, then Play — only then the match starts."}
+              {seatKind === "live"
+                ? liveMissed
+                  ? `${inviteSeat || "They"} didn’t sit in time. Send it as a later challenge (no clock) or leave.`
+                  : `${inviteSeat || "They"} must accept in Sanctum now. Clock starts when both phones are sitting.`
+                : inviteSeat
+                  ? `${inviteSeat} will see this under My games. They open Sanctum from the icon — no link, no clock.`
+                  : "Share the link (or read them the code). They tap Enter a code, pick an army, then Play — only then the match starts."}
             </p>
+            {seatKind === "live" && !liveMissed ? (
+              <p className="mt-3 font-display text-2xl text-gold">{liveLeft}s</p>
+            ) : null}
             <p className="mt-3 text-xs text-gold">
               {connectedPeer || linked
                 ? inviteSeat
@@ -1340,7 +1371,21 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                     : "Waiting for their phone…"
                   : "Connecting…"}
             </p>
-            {inviteSeat ? null : (
+            {seatKind === "live" && liveMissed && room ? (
+              <Button
+                className="mt-4 w-full"
+                onClick={() => {
+                  void deferGameLaterClient(room).catch(() => {});
+                  setClockLimit(0);
+                  setLiveMissed(false);
+                  setLiveLeft(0);
+                  setSeatKind("later");
+                }}
+              >
+                Send as later
+              </Button>
+            ) : null}
+            {inviteSeat || seatKind ? null : (
               <Button className="mt-4 w-full" onClick={shareRoom}>
                 <Share2 className="size-4" /> Share link
               </Button>

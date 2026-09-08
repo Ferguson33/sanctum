@@ -3,6 +3,7 @@ import { z } from "zod";
 import { FACTIONS } from "@/lib/chess/catalog";
 import { getSessionProfileId } from "@/lib/profile/session";
 import {
+  deferGameLater,
   finishGame,
   getGameByRoom,
   listMineGames,
@@ -29,9 +30,14 @@ const upsertSchema = z.object({
   clockBMs: z.number().int().min(0).max(3_600_000).nullable().optional(),
   asHost: z.boolean(),
   peerProfileId: z.string().min(1).max(64).nullable().optional(),
+  challenge: z.enum(["live", "later"]).nullable().optional(),
 });
 const finishSchema = z.object({
   op: z.literal("finish"),
+  room: z.string().min(4).max(32),
+});
+const laterSchema = z.object({
+  op: z.literal("later"),
   room: z.string().min(4).max(32),
 });
 
@@ -40,6 +46,7 @@ const postSchema = z.discriminatedUnion("op", [
   getByRoomSchema,
   upsertSchema,
   finishSchema,
+  laterSchema,
 ]);
 
 function json(body: unknown, status = 200): Response {
@@ -105,6 +112,7 @@ async function handlePost(request: Request): Promise<Response> {
       clockBMs: msg.clockBMs,
       asHost: msg.asHost,
       peerProfileId: msg.peerProfileId,
+      challenge: msg.challenge,
     });
     if (!result.ok) return json({ error: result.error }, result.status ?? 400);
     return json(result);
@@ -114,6 +122,14 @@ async function handlePost(request: Request): Promise<Response> {
     const self = await requireSession();
     if (typeof self !== "string") return self;
     const result = await finishGame(self, msg.room);
+    if (!result.ok) return json({ error: result.error }, result.status ?? 400);
+    return json(result);
+  }
+
+  if (msg.op === "later") {
+    const self = await requireSession();
+    if (typeof self !== "string") return self;
+    const result = await deferGameLater(self, msg.room);
     if (!result.ok) return json({ error: result.error }, result.status ?? 400);
     return json(result);
   }

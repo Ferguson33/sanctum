@@ -221,6 +221,8 @@ type GameDbRow = {
   black_profile_id: string | null;
   status: string;
   updated_at: string | Date;
+  challenge?: string | null;
+  expires_at?: string | Date | null;
 };
 
 function toGameRow(row: GameDbRow, profileId?: string): GameRow {
@@ -229,6 +231,7 @@ function toGameRow(row: GameDbRow, profileId?: string): GameRow {
     if (row.white_profile_id === profileId) mySide = "w";
     else if (row.black_profile_id === profileId) mySide = "b";
   }
+  const ch = row.challenge === "live" || row.challenge === "later" ? row.challenge : null;
   return {
     id: row.id,
     room: row.room,
@@ -244,13 +247,16 @@ function toGameRow(row: GameDbRow, profileId?: string): GameRow {
     blackProfileId: row.black_profile_id,
     status: row.status === "finished" ? "finished" : "open",
     updatedAt: String(row.updated_at),
+    challenge: ch,
+    expiresAt: row.expires_at ? String(row.expires_at) : null,
     ...(mySide ? { mySide } : {}),
   };
 }
 
 const GAME_SELECT = `id, room, fen, ply, w_faction, b_faction, board,
   clock_limit_sec, clock_w_ms, clock_b_ms,
-  white_profile_id, black_profile_id, status, updated_at`;
+  white_profile_id, black_profile_id, status, updated_at,
+  challenge, expires_at`;
 
 /** Open games where the profile sits white or black. */
 export async function listMineGames(profileId: string): Promise<GameRow[]> {
@@ -282,6 +288,8 @@ export async function getGameByRoom(
   return toGameRow(rows[0], profileId ?? undefined);
 }
 
+export const LIVE_ACCEPT_SEC = 90;
+
 export type UpsertGameInput = {
   room: string;
   fen: string;
@@ -296,6 +304,7 @@ export type UpsertGameInput = {
   asHost: boolean;
   /** Peer profile id when known (black if host, white if guest). */
   peerProfileId?: string | null;
+  challenge?: "live" | "later" | null;
 };
 
 /**
@@ -326,9 +335,11 @@ export async function upsertGame(
   const ply = Math.max(0, Math.floor(input.ply) || 0);
   const bFaction = input.bFaction || "";
   const peer = input.peerProfileId?.trim() || null;
+  const challenge = input.challenge === "live" || input.challenge === "later" ? input.challenge : null;
+  const liveClock = challenge === "later" ? null : clockLimit;
 
   if (!existing.length) {
-    // Prefer requiring host profile to create the saved row.
+    // Prefer requiring host profile to create the first saved row.
     if (!input.asHost) {
       return { ok: false, error: "host must start the saved game", status: 403 };
     }
@@ -339,11 +350,13 @@ export async function upsertGame(
       `insert into sanctum.games (
          id, room, fen, ply, w_faction, b_faction, board,
          clock_limit_sec, clock_w_ms, clock_b_ms,
-         white_profile_id, black_profile_id, status, updated_at
+         white_profile_id, black_profile_id, status, updated_at,
+         challenge, expires_at
        ) values (
          $1, $2, $3, $4, $5, $6, $7,
          $8, $9, $10,
-         $11, $12, 'open', now()
+         $11, $12, 'open', now(),
+         $13, case when $13 = 'live' then now() + ($14::int * interval '1 second') else null end
        )`,
       [
         id,
@@ -353,11 +366,13 @@ export async function upsertGame(
         input.wFaction,
         bFaction,
         input.board,
-        clockLimit,
-        clockW,
-        clockB,
+        liveClock,
+        challenge === "later" ? null : clockW,
+        challenge === "later" ? null : clockB,
         whiteId,
         blackId,
+        challenge,
+        LIVE_ACCEPT_SEC,
       ],
     );
     const created = await getGameByRoom(room, profileId);
@@ -453,4 +468,40 @@ export async function finishGame(
   const done = await getGameByRoom(code, profileId);
   if (!done) return { ok: false, error: "finish failed", status: 500 };
   return { ok: true, game: done };
+}
+
+/** Live pickup missed — keep the row as an untimed later challenge. */
+export async function deferGameLater(
+  profileId: string,
+  room: string,
+): Promise<{ ok: true; game: GameRow } | { ok: false; error: string; status?: number }> {
+  const code = room.trim().toUpperCase();
+  if (!code) return { ok: false, error: "invalid room", status: 400 };
+  const sql = await getSql();
+  const rows = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT} from sanctum.games where room = $1 limit 1`,
+    [code],
+  );
+  if (!rows.length) return { ok: false, error: "not found", status: 404 };
+  const row = rows[0];
+  if (row.white_profile_id !== profileId && row.black_profile_id !== profileId) {
+    return { ok: false, error: "not your game", status: 403 };
+  }
+  if (row.status === "finished") {
+    return { ok: true, game: toGameRow(row, profileId) };
+  }
+  await sql.query(
+    `update sanctum.games
+        set challenge = 'later',
+            expires_at = null,
+            clock_limit_sec = null,
+            clock_w_ms = null,
+            clock_b_ms = null,
+            updated_at = now()
+      where room = $1 and status = 'open'`,
+    [code],
+  );
+  const next = await getGameByRoom(code, profileId);
+  if (!next) return { ok: false, error: "defer failed", status: 500 };
+  return { ok: true, game: next };
 }

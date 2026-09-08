@@ -6,13 +6,14 @@ import { hostKey, parseTable, peerKey } from "@/lib/chess/net";
 export const Route = createFileRoute("/r/$code")({
   validateSearch: (
     raw: Record<string, unknown>,
-  ): { w?: string; b?: string; board?: string; open?: string; clock?: string; seat?: string } => ({
+  ): { w?: string; b?: string; board?: string; open?: string; clock?: string; seat?: string; kind?: string } => ({
     ...(typeof raw.w === "string" ? { w: raw.w } : {}),
     ...(typeof raw.b === "string" ? { b: raw.b } : {}),
     ...(typeof raw.board === "string" ? { board: raw.board } : {}),
     ...(typeof raw.open === "string" ? { open: raw.open } : {}),
     ...(typeof raw.clock === "string" ? { clock: raw.clock } : {}),
     ...(typeof raw.seat === "string" ? { seat: raw.seat } : {}),
+    ...(typeof raw.kind === "string" ? { kind: raw.kind } : {}),
   }),
   component: RoomPage,
 });
@@ -53,6 +54,7 @@ function RoomPage() {
       invite={invite}
       clockSec={clockSec}
       inviteSeat={typeof search.seat === "string" ? search.seat : undefined}
+      inviteKind={search.kind === "live" || search.kind === "later" ? search.kind : undefined}
     />
   );
 }

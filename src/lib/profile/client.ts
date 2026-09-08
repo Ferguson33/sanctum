@@ -143,11 +143,16 @@ export function upsertGameClient(input: {
   clockBMs?: number | null;
   asHost: boolean;
   peerProfileId?: string | null;
+  challenge?: "live" | "later" | null;
 }) {
   return gamesFetch<{ ok: boolean; game?: GameRow; error?: string }>("upsert", input);
 }
 
 export function finishGameClient(room: string) {
   return gamesFetch<{ ok: boolean; game?: GameRow; error?: string }>("finish", { room });
+}
+
+export function deferGameLaterClient(room: string) {
+  return gamesFetch<{ ok: boolean; game?: GameRow; error?: string }>("later", { room });
 }
 

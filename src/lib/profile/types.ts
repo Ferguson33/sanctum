@@ -37,4 +37,7 @@ export type GameRow = {
   updatedAt: string;
   /** Seat relative to the signed-in profile when listed via listMine. */
   mySide?: "w" | "b";
+  /** live = both should be in the app now (clock ok). later = pick up on My games (no clock). */
+  challenge?: "live" | "later" | null;
+  expiresAt?: string | null;
 };

@@ -1,5 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
+import { IncomingChallenge } from "@/components/chess/IncomingChallenge";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
@@ -41,6 +42,7 @@ export const Route = createRootRoute({
       <body className="bg-bg text-fg font-sans">
         <PreviewHostBridge />
         <AuthProvider>
+          <IncomingChallenge />
           <Outlet />
         </AuthProvider>
         <Toaster

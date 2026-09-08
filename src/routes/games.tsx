@@ -69,6 +69,9 @@ function MyGamesPage() {
     if (game.clockLimitSec && game.clockLimitSec > 0) {
       search.clock = String(game.clockLimitSec);
     }
+    if (game.challenge === "live" || game.challenge === "later") {
+      search.kind = game.challenge;
+    }
     void nav({ to: "/r/$code", params: { code: room }, search });
   }
 
@@ -118,16 +121,27 @@ function MyGamesPage() {
               const w = getFaction(g.wFaction);
               const b = g.bFaction ? getFaction(g.bFaction) : null;
               const challenge = g.ply <= 0 && !g.bFaction;
-              const title = b ? tableName(w, b) : challenge && g.mySide === "b" ? `${w.name} challenged you` : w.name;
+              const liveWait = challenge && g.challenge === "live";
+              const title = b
+                ? tableName(w, b)
+                : liveWait && g.mySide === "b"
+                  ? `${w.name} · live call`
+                  : challenge && g.mySide === "b"
+                    ? `${w.name} challenged you`
+                    : w.name;
               const turn = g.fen.split(" ")[1] === "b" ? "Black" : "White";
               const sideLabel =
-                challenge && g.mySide === "b"
-                  ? "Pick your army"
-                  : challenge
-                    ? "Waiting for them"
-                    : g.mySide === "b"
-                      ? "You · black"
-                      : "You · white";
+                liveWait && g.mySide === "b"
+                  ? "Sit now"
+                  : challenge && g.mySide === "b"
+                    ? "Pick your army"
+                    : challenge
+                      ? g.challenge === "live"
+                        ? "Waiting for them to accept"
+                        : "Waiting for them"
+                      : g.mySide === "b"
+                        ? "You · black"
+                        : "You · white";
               return (
                 <li key={g.id}>
                   <button
