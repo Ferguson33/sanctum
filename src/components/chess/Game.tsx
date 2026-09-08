@@ -673,7 +673,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     const chess = new Chess(nextFen);
     chessRef.current = chess;
     setFen(chess.fen());
-    setPieces((ps) => reconcilePieces(ps, chess.fen()));
+    // Fresh deal — do not reconcile or leftover keys CSS-slide home across the board.
+    setPieces(piecesFromFen(chess.fen()));
     setHistory([]);
     setLastMove(null);
     setSelected(null);
