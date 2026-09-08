@@ -4,8 +4,7 @@ import { ChevronLeft, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFaction, tableName } from "@/lib/chess/catalog";
 import { hostKey } from "@/lib/chess/net";
-import { fetchMyGames, useProfile, type GameRow } from "@/lib/profile/client";
-import { cn } from "@/lib/utils";
+import { fetchMyGames, finishGameClient, useProfile, type GameRow } from "@/lib/profile/client";
 
 export const Route = createFileRoute("/games")({
   component: MyGamesPage,
@@ -27,6 +26,7 @@ function MyGamesPage() {
   const [games, setGames] = useState<GameRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [dropping, setDropping] = useState<string | null>(null);
 
   useEffect(() => {
     if (seatLoading) return;
@@ -52,6 +52,18 @@ function MyGamesPage() {
       alive = false;
     };
   }, [profile, seatLoading]);
+
+  async function dropGame(game: GameRow) {
+    setDropping(game.id);
+    try {
+      await finishGameClient(game.room);
+      setGames((rows) => rows.filter((g) => g.id !== game.id));
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Could not drop that game");
+    } finally {
+      setDropping(null);
+    }
+  }
 
   function reopen(game: GameRow) {
     const room = game.room.toUpperCase();
@@ -96,8 +108,7 @@ function MyGamesPage() {
         </header>
 
         <p className="text-sm text-pretty text-muted">
-          Open duels and seat challenges. A challenge from the standings shows up here — open Sanctum from the icon,
-          no link.
+          Open duels and seat challenges. Drop one to clear the list — it does not count as a resign.
         </p>
 
         {seatLoading || loading ? (
@@ -143,13 +154,11 @@ function MyGamesPage() {
                         ? "You · black"
                         : "You · white";
               return (
-                <li key={g.id}>
+                <li key={g.id} className="overflow-hidden rounded-[20px]">
                   <button
                     type="button"
                     onClick={() => reopen(g)}
-                    className={cn(
-                      "panel flex w-full items-center gap-3 rounded-[20px] px-3 py-3 text-left",
-                    )}
+                    className="panel flex w-full items-center gap-3 rounded-[20px] rounded-b-none px-3 py-3 text-left"
                   >
                     <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-bg/50 text-gold">
                       <Swords className="size-4" />
@@ -167,6 +176,17 @@ function MyGamesPage() {
                       {challenge && g.mySide === "b" ? "Sit" : "Open"}
                     </span>
                   </button>
+                  <div className="border-x border-b border-border bg-bg/70 px-3 py-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-muted"
+                      disabled={dropping === g.id}
+                      onClick={() => void dropGame(g)}
+                    >
+                      {dropping === g.id ? "Dropping…" : "Drop — not a resign"}
+                    </Button>
+                  </div>
                 </li>
               );
             })}
