@@ -72,9 +72,9 @@ const GROVE_SCALE = {
 };
 
 const CANON_SCALE = {
-  scale: { width: 0.94, height: 0.94 },
-  typeScale: { p: 0.82, n: 1.04, b: 1.0, r: 0.98, q: 1.02, k: 1.06 } as Partial<Record<PieceType, number>>,
-  fit: "glyph" as const,
+  scale: { width: 0.86, height: 1.04 },
+  typeScale: { p: 0.66, n: 1.04, b: 0.98, r: 0.92, q: 1.04, k: 1.08 } as Partial<Record<PieceType, number>>,
+  fit: "statue" as const,
 };
 
 /** Atlantis + Aliens — pawns were ~0.54 and nearly invisible on phone. */
@@ -146,20 +146,20 @@ export const FACTIONS: Faction[] = [
   {
     id: "canon-ivory",
     name: "Ivory",
-    epithet: "the readable host",
+    epithet: "the quiet host",
     family: "Canon",
-    dir: "sigil",
-    ext: "svg",
+    dir: "canon",
+    ext: "webp",
     file: "w",
     ...CANON_SCALE,
   },
   {
     id: "canon-ember",
     name: "Ember",
-    epithet: "the readable court",
+    epithet: "the quiet court",
     family: "Canon",
-    dir: "sigil",
-    ext: "svg",
+    dir: "canon",
+    ext: "webp",
     file: "b",
     ...CANON_SCALE,
   },
@@ -213,7 +213,7 @@ export const PIECE_SETS: PieceSet[] = [
   {
     id: "sigil",
     name: "Canon",
-    tagline: "Ivory and ember, cut to read at a glance",
+    tagline: "Ivory and ember, for the quiet table",
     w: "canon-ivory",
     b: "canon-ember",
   },
