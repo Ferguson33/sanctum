@@ -168,13 +168,26 @@ function replyScore(chess: Chess, depth: number): number {
   return best;
 }
 
+function isLegalAiMove(fen: string, mv: AiMove): boolean {
+  const chess = new Chess(fen);
+  const legal = chess.moves({ verbose: true });
+  return legal.some(
+    (m) =>
+      m.from === mv.from &&
+      m.to === mv.to &&
+      (mv.promotion ? m.promotion === mv.promotion : !m.promotion || m.promotion === "q"),
+  );
+}
+
 export async function think(fen: string, levelId: AiLevelId | string | undefined): Promise<AiMove> {
   const level = getAiLevel(levelId);
   try {
-    return await stockfishMove(fen, level);
+    const mv = await stockfishMove(fen, level);
+    if (isLegalAiMove(fen, mv)) return mv;
   } catch {
-    return heuristicMove(fen, level);
+    /* fall through */
   }
+  return heuristicMove(fen, level);
 }
 
 export function warmOpponent() {
