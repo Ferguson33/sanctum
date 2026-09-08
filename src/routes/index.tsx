@@ -97,6 +97,14 @@ function Home() {
             >
               Standings
             </Link>
+            {profile ? (
+              <Link
+                to="/games"
+                className="text-[10px] uppercase tracking-[0.18em] text-muted underline-offset-2 hover:text-gold hover:underline"
+              >
+                My games
+              </Link>
+            ) : null}
           </div>
           <div className="text-center">
             <p className="text-xs uppercase tracking-[0.28em] text-gold">Cinematic chess</p>

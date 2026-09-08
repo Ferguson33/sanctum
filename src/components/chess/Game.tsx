@@ -50,7 +50,13 @@ import { playHaptic } from "@/lib/chess/haptic";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
 import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
-import { recordMatchClient, useProfile } from "@/lib/profile/client";
+import {
+  fetchGameByRoom,
+  finishGameClient,
+  recordMatchClient,
+  upsertGameClient,
+  useProfile,
+} from "@/lib/profile/client";
 import { cn } from "@/lib/utils";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -150,6 +156,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const lastMoveRef = useRef(lastMove);
   const peerProfileIdRef = useRef<string | null>(null);
   const recordedMatchRef = useRef(false);
+  const finishedGameRef = useRef(false);
+  const didHydrateRef = useRef(false);
+  const persistBusyRef = useRef(false);
   const { profile: localProfile } = useProfile();
   handoffRef.current = handoff;
   lastMoveRef.current = lastMove;
@@ -365,7 +374,135 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       // Allow a single retry if the first call failed (network blip).
       recordedMatchRef.current = false;
     });
+    if (!finishedGameRef.current) {
+      finishedGameRef.current = true;
+      void finishGameClient(room).catch(() => {
+        finishedGameRef.current = false;
+      });
+    }
   }, [ending, mode, room, localProfile?.id, host, table.w, table.b]);
+
+  const persistGame = useCallback(
+    (opts?: { forceHost?: boolean }) => {
+      if (mode !== "online" || !room || !localProfile?.id) return;
+      if (!table.w || !table.board) return;
+      // Guests may update an existing row; host creates the first saved row.
+      const asHost = opts?.forceHost ?? Boolean(host);
+      if (persistBusyRef.current) return;
+      persistBusyRef.current = true;
+      const chess = chessRef.current;
+      const fen = chess.fen();
+      const body = {
+        room,
+        fen,
+        ply: plyOfFen(fen),
+        wFaction: table.w,
+        bFaction: table.b || "",
+        board: table.board,
+        clockLimitSec: clockLimit > 0 ? clockLimit : null,
+        clockWMs: clockLimit > 0 ? clocksRef.current.w : null,
+        clockBMs: clockLimit > 0 ? clocksRef.current.b : null,
+        asHost,
+        peerProfileId: peerProfileIdRef.current,
+      };
+      void upsertGameClient(body)
+        .catch(() => {
+          /* best-effort persistence */
+        })
+        .finally(() => {
+          persistBusyRef.current = false;
+        });
+    },
+    [mode, room, localProfile?.id, host, table.w, table.b, table.board, clockLimit],
+  );
+  const persistGameRef = useRef(persistGame);
+  persistGameRef.current = persistGame;
+
+  // Hydrate from sanctum.games when reopening an empty live board.
+  useEffect(() => {
+    if (mode !== "online" || !room || !localProfile?.id) return;
+    if (didHydrateRef.current) return;
+    didHydrateRef.current = true;
+    let alive = true;
+    void (async () => {
+      try {
+        const { game } = await fetchGameByRoom(room);
+        if (!alive || !game || game.status !== "open") return;
+        const localPly = plyOfFen(chessRef.current.fen());
+        // Only hydrate when the live board is still empty (start) and saved ply is ahead.
+        if (localPly > 0) return;
+        if (game.ply <= 0 && game.fen.split(" ")[0] === START.split(" ")[0]) {
+          // Still opening — adopt armies/clocks if present.
+          if (game.wFaction || game.bFaction) {
+            setTable((cur) => ({
+              w: game.wFaction || cur.w,
+              b: game.bFaction || cur.b,
+              board: game.board || cur.board,
+            }));
+          }
+          if (game.clockLimitSec && game.clockLimitSec > 0) {
+            setClockLimit(game.clockLimitSec);
+            setClocks({
+              w: game.clockWMs ?? game.clockLimitSec * 1000,
+              b: game.clockBMs ?? game.clockLimitSec * 1000,
+            });
+          }
+          return;
+        }
+        try {
+          chessRef.current.load(game.fen);
+        } catch {
+          return;
+        }
+        setFen(game.fen);
+        setPieces(piecesFromFen(game.fen));
+        setTurn(chessRef.current.turn());
+        setHistory([]);
+        setLastMove(null);
+        const end = endingOf(chessRef.current);
+        setEnding(end);
+        setPhase(end ? "over" : "idle");
+        setHandoff("idle");
+        setParade(false);
+        didParade.current = true;
+        setTable({
+          w: game.wFaction,
+          b: game.bFaction || "",
+          board: game.board,
+        });
+        if (game.clockLimitSec && game.clockLimitSec > 0) {
+          setClockLimit(game.clockLimitSec);
+          setClocks({
+            w: game.clockWMs ?? game.clockLimitSec * 1000,
+            b: game.clockBMs ?? game.clockLimitSec * 1000,
+          });
+        }
+        if (game.whiteProfileId && game.whiteProfileId !== localProfile.id) {
+          peerProfileIdRef.current = game.whiteProfileId;
+        }
+        if (game.blackProfileId && game.blackProfileId !== localProfile.id) {
+          peerProfileIdRef.current = game.blackProfileId;
+        }
+        flash({ kind: "turn", title: "Restored", body: "Picked up where you left off." }, 2400);
+      } catch {
+        /* no saved game or network — stay live-only */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [mode, room, localProfile?.id]); // eslint-disable-line
+
+  // Persist after End turn (state pushed) and when we ack a remote state apply.
+  useEffect(() => {
+    if (mode !== "online" || !room || !localProfile?.id) return;
+    if (handoff !== "sending" && handoff !== "theirs") return;
+    // Skip brand-new empty boards until someone has moved or both armies seated.
+    const ply = plyOfFen(chessRef.current.fen());
+    if (ply <= 0 && !table.b) return;
+    persistGame();
+  }, [handoff, mode, room, localProfile?.id, table.b, persistGame]);
+
 
   useEffect(() => {
     if (handoff !== "sending") {
@@ -621,6 +758,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (msg.t === "reset") {
       incomingPly.current = false;
       recordedMatchRef.current = false;
+      finishedGameRef.current = false;
       reset(msg.fen, true);
       flash({ kind: "turn", title: "Rematch", body: "New game." }, 2200);
       return;
@@ -659,6 +797,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (msg.clocks) setClocks(msg.clocks);
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
       ackHave(remotePly, true);
+      // Receiver upsert after successful state apply (slow multi-duel).
+      window.setTimeout(() => persistGameRef.current({ forceHost: Boolean(host) }), 0);
       if (end) {
         if (prefs.sound) playMoveSound("end");
       } else if (prefs.sound) {
