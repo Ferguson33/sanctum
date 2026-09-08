@@ -223,6 +223,7 @@ export const FACTIONS: Faction[] = [
     ext: "webp",
     file: "w",
     ...MECH_SCALE,
+    intro: "/sets/mechs/intro.mp4?v=1",
   },
 ];
 
