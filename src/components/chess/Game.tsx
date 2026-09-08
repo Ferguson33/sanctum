@@ -201,6 +201,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   }, [mode, seated]);
 
   // Clocks: online only after handoff idle (turn pushed); AI on the side to move.
+  // Debit chessRef.turn() each tick so React turn lag cannot leave White running forever.
   useEffect(() => {
     if (!clockLimit || parade || ending || phase === "over" || phase === "animating") return;
     if (mode === "online") {
@@ -209,8 +210,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     } else if (mode !== "ai") {
       return;
     }
-    const side = turn;
     const id = window.setInterval(() => {
+      const side = chessRef.current.turn() as Side;
       setClocks((c) => {
         const next = Math.max(0, c[side] - 250);
         if (next === 0 && c[side] > 0) {
@@ -231,7 +232,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       });
     }, 250);
     return () => window.clearInterval(id);
-  }, [clockLimit, parade, ending, phase, handoff, turn, seated, mySide, p2p]);
+  }, [clockLimit, parade, ending, phase, handoff, seated, mySide, p2p, mode, turn]);
 
   useEffect(() => {
     if (mode === "local") return;
@@ -404,6 +405,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (!ok) return;
     const move = playMove(chess, from, to, promotion);
     if (!move) return;
+    // Flip the turn flag immediately so clocks/labels track chess.js, not the 240ms snapshot delay.
+    setTurn(chess.turn());
+    setFen(chess.fen());
     setPieces((ps) => applyMoveToPieces(ps, move));
     // Reconcile sprites to FEN so art can never drift into illegal geometry.
     window.setTimeout(() => {
@@ -763,7 +767,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   const heavenCaps = capturesBy(history, "w");
   const hellCaps = capturesBy(history, "b");
-  const sideToMove = turn === "w" ? wFaction : bFaction;
+  // Prefer FEN side-to-move so chrome never lags a ply behind the engine.
+  const liveTurn = (fen.split(" ")[1] === "b" ? "b" : "w") as Side;
+  const sideToMove = liveTurn === "w" ? wFaction : bFaction;
 
   return (
     <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-bg text-fg">
@@ -779,7 +785,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </Link>
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg leading-none sm:text-xl">{title}</p>
-          <p className="truncate text-xs text-muted">
+          <p className="text-xs leading-snug text-muted text-pretty">
             {thinking
               ? `${bFaction.name} considers`
               : ending
@@ -860,10 +866,10 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
       {clockLimit > 0 && (mode === "ai" || seated) && (
         <div className="relative z-10 flex shrink-0 items-center justify-center gap-6 px-4 py-1 text-sm tabular-nums">
-          <span className={cn(turn === "w" && handoff === "idle" ? "text-gold" : "text-muted")}>
+          <span className={cn(liveTurn === "w" && handoff === "idle" ? "text-gold" : "text-muted")}>
             {wFaction.name} {formatClock(clocks.w)}
           </span>
-          <span className={cn(turn === "b" && handoff === "idle" ? "text-ember" : "text-muted")}>
+          <span className={cn(liveTurn === "b" && handoff === "idle" ? "text-ember" : "text-muted")}>
             {bFaction.name} {formatClock(clocks.b)}
           </span>
         </div>
@@ -911,7 +917,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           <>
             {handoff === "ready" || handoff === "sending" ? (
               <>
-                <p className="min-w-0 flex-1 truncate text-sm text-muted">
+                <p className="min-w-0 flex-1 text-sm leading-snug text-muted text-pretty">
                   {handoff === "sending"
                     ? ending
                       ? "Sending the finish…"
@@ -946,7 +952,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           </>
         ) : mode === "ai" ? (
           <>
-            <p className="min-w-0 flex-1 truncate text-sm text-muted">
+            <p className="min-w-0 flex-1 text-sm leading-snug text-muted text-pretty">
               {thinking ? `${bFaction.name} considers…` : `${wFaction.name} vs ${getAiLevel(aiLevel).name}`}
             </p>
             <Button variant="subtle" size="sm" onClick={undo} disabled={history.length === 0 || thinking}>
