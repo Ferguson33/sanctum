@@ -153,7 +153,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const handoffRef = useRef<Handoff>("idle");
   const calloutTimer = useRef(0);
   const incomingPly = useRef(false);
+  /** Last ply we already acked — avoid spamming `have` on every duplicate state. */
+  const lastHavePly = useRef(-1);
+  const lastMoveRef = useRef(lastMove);
   handoffRef.current = handoff;
+  lastMoveRef.current = lastMove;
   historyRef.current = history;
 
   const [clockLimit, setClockLimit] = useState(() =>
@@ -340,7 +344,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (mode !== "online" || handoff !== "sending") return;
     const push = () => {
       const chess = chessRef.current;
-      const last = lastMove;
+      const last = lastMoveRef.current;
       const msg: NetMsg = {
         t: "state",
         fen: chess.fen(),
@@ -354,19 +358,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       };
       p2p.send(msg);
     };
+    // ntfy.sh 429s after ~15–20 pubs in a short burst. One shot + sparse retries.
     push();
-    // Burst a couple early retries, then keep a steady drumbeat.
-    const t1 = window.setTimeout(push, 350);
-    const t2 = window.setTimeout(push, 900);
-    const id = window.setInterval(push, 500);
+    const timers = [1200, 3000, 7000, 14000].map((ms) => window.setTimeout(push, ms));
+    const id = window.setInterval(push, 16_000);
     const onWake = () => {
       if (document.visibilityState === "visible") push();
     };
     document.addEventListener("visibilitychange", onWake);
     window.addEventListener("focus", onWake);
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      for (const tm of timers) window.clearTimeout(tm);
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onWake);
       window.removeEventListener("focus", onWake);
@@ -615,7 +617,24 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     }, 240);
   }
 
+  function ackHave(ply: number, force = false) {
+    if (!force && lastHavePly.current === ply) {
+      p2p.send({ t: "have", ply } satisfies NetMsg);
+      return;
+    }
+    lastHavePly.current = ply;
+    p2p.send({ t: "have", ply } satisfies NetMsg);
+    window.setTimeout(() => {
+      try {
+        p2p.send({ t: "have", ply } satisfies NetMsg);
+      } catch {
+        /* */
+      }
+    }, 700);
+  }
+
   function handleNet(msg: NetMsg) {
+
     const chess = chessRef.current;
     if (msg.t === "sync") {
       if (plyOfFen(msg.fen) < plyOfFen(chess.fen())) return;
@@ -674,18 +693,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       const remotePly = msg.ply ?? plyOfFen(msg.fen);
       const localPly = plyOfFen(chess.fen());
       if (remotePly < localPly) {
-        p2p.send({ t: "have", ply: localPly } satisfies NetMsg);
+        ackHave(localPly);
         return;
       }
       if (remotePly === localPly) {
-        p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
-        window.setTimeout(() => {
-          try {
-            p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
-          } catch {
-            /* */
-          }
-        }, 280);
+        ackHave(remotePly);
         if (handoffRef.current === "sending") setHandoff("theirs");
         return;
       }
@@ -705,14 +717,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (msg.from && msg.to) setLastMove({ from: msg.from as Square, to: msg.to as Square });
       if (msg.clocks) setClocks(msg.clocks);
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
-      p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
-      window.setTimeout(() => {
-        try {
-          p2p.send({ t: "have", ply: remotePly } satisfies NetMsg);
-        } catch {
-          /* */
-        }
-      }, 280);
+      ackHave(remotePly, true);
       if (end) {
         if (prefs.sound) playMoveSound("end");
       } else if (prefs.sound) {
@@ -840,6 +845,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setPhase("idle");
     setTurn(chess.turn());
     setHandoff("idle");
+    lastHavePly.current = -1;
     if (mode === "local") setOrientation("w");
     if (!remote && mode === "online") p2p.send({ t: "reset", fen: chess.fen() } satisfies NetMsg);
   }
@@ -871,7 +877,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       setHandoff("sending");
       return;
     }
-    // Stuck resend: bounce the effect so it fires a fresh burst.
+    // Stuck resend: re-arm the sparse retry schedule (do not flood).
     if (handoff === "sending" && sendStuck) {
       setSendStuck(false);
       setHandoff("ready");

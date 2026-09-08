@@ -224,6 +224,9 @@ async function handlePost(request: Request): Promise<Response> {
     await publishRemote(msg.room, from, payload);
   } catch (err) {
     console.warn("[rtc] remote publish missed", err);
+    // Production relies on ntfy (local log is per-instance). Surface the miss
+    // so the client retry path actually runs instead of assuming success.
+    return json({ error: "mailbox publish failed", ok: false }, 502);
   }
   return json({ ok: true });
 }
