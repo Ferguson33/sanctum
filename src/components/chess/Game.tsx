@@ -856,7 +856,13 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 py-1 text-xs text-muted">
           <span className="font-medium tracking-[0.2em] text-fg">{room}</span>
           <span>
-            {handoff === "sending" ? "sending" : connectedPeer || linked ? "linked" : p2p.joined ? "searching" : "connecting"}
+            {handoff === "sending"
+              ? "Sending your ply…"
+              : connectedPeer || linked
+                ? "Phones linked"
+                : p2p.joined
+                  ? "Waiting for their phone…"
+                  : "Opening the table…"}
           </span>
           <button type="button" className="inline-flex items-center gap-1 text-ivory" onClick={shareRoom}>
             <Share2 className="size-3.5" /> Share
@@ -1068,13 +1074,22 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       {mode === "online" && !seated && host && (
         <div className="absolute inset-0 z-40 flex items-end justify-center bg-bg/70 p-4 pb-10">
           <div className="panel w-full max-w-md rounded-[28px] p-5 text-center">
-            <p className="text-xs uppercase tracking-[0.22em] text-gold">Your host</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-gold">You started the duel</p>
             <p className="font-display mt-1 text-4xl">{wFaction.name}</p>
+            <p className="mt-3 font-display text-3xl tracking-[0.18em] text-ivory">{room}</p>
             <p className="mt-2 text-sm text-muted text-pretty">
-              Share the link. They pick their army — you’ll see their six sit before the table opens.
+              Share the link (or read them the code). They tap Join a duel, pick an army, then Sit — only then the table
+              opens.
+            </p>
+            <p className="mt-3 text-xs text-gold">
+              {connectedPeer || linked
+                ? "They’re in — waiting for them to sit…"
+                : p2p.joined
+                  ? "Waiting for their phone…"
+                  : "Opening the table…"}
             </p>
             <Button className="mt-4 w-full" onClick={shareRoom}>
-              Share
+              <Share2 className="size-4" /> Share link
             </Button>
           </div>
         </div>
@@ -1083,14 +1098,21 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       {mode === "online" && !seated && !host && (
         <div className="absolute inset-0 z-40 overflow-y-auto bg-bg/90 px-4 py-8 pt-[max(1.5rem,env(safe-area-inset-top))]">
           <div className="mx-auto max-w-lg pb-8">
+            <p className="mb-2 text-center text-xs uppercase tracking-[0.22em] text-gold">Join the duel</p>
+            <p className="mb-1 text-center font-display text-2xl tracking-[0.14em]">{room}</p>
+            <p className="mb-5 text-center text-sm text-muted text-pretty">
+              {connectedPeer || linked
+                ? `${wFaction.name} sits white. Pick your army, then sit to open the table.`
+                : "Connecting to their phone… you can still pick your army."}
+            </p>
             <ArmyPick
-              kicker="Pick your host"
-              note={`${wFaction.name} already sits white. Choose a different army.`}
+              kicker="Your army"
+              note={`${wFaction.name} already has white. Choose a different host, then sit.`}
               selected={draftBlack}
               taken={table.w}
               onSelect={setDraftBlack}
               onSit={sitBlack}
-              sitLabel={`Sit as ${getFaction(draftBlack).name}`}
+              sitLabel={`Sit & play as ${getFaction(draftBlack).name}`}
             />
           </div>
         </div>
