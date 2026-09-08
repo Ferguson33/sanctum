@@ -143,7 +143,21 @@ export function piecesFromFen(fen: string): LivePiece[] {
 }
 
 /** Apply a move to a live piece list, keeping ids stable so CSS can tween. */
+/** True castling only — never treat a random flag substring as O-O. */
+export function castleSideOf(move: MoveRec): "k" | "q" | null {
+  if (move.san === "O-O" || move.flags === "k") return "k";
+  if (move.san === "O-O-O" || move.flags === "q") return "q";
+  // King moved exactly two files on its back rank.
+  const fromFile = move.from.charCodeAt(0);
+  const toFile = move.to.charCodeAt(0);
+  if (move.from[1] === move.to[1] && Math.abs(toFile - fromFile) === 2) {
+    return toFile > fromFile ? "k" : "q";
+  }
+  return null;
+}
+
 export function applyMoveToPieces(pieces: LivePiece[], move: MoveRec): LivePiece[] {
+  const castle = castleSideOf(move);
   const next = pieces.filter((p) => {
     if (p.square === move.to) return false;
     if (move.flags.includes("e") && p.type === "p") {
@@ -155,11 +169,11 @@ export function applyMoveToPieces(pieces: LivePiece[], move: MoveRec): LivePiece
   });
   return next.map((p) => {
     if (p.square !== move.from) {
-      if (move.flags.includes("k") && p.type === "r") {
+      if (castle === "k" && p.type === "r") {
         if (p.color === "w" && p.square === "h1") return { ...p, square: "f1" as Square };
         if (p.color === "b" && p.square === "h8") return { ...p, square: "f8" as Square };
       }
-      if (move.flags.includes("q") && p.type === "r") {
+      if (castle === "q" && p.type === "r") {
         if (p.color === "w" && p.square === "a1") return { ...p, square: "d1" as Square };
         if (p.color === "b" && p.square === "a8") return { ...p, square: "d8" as Square };
       }
