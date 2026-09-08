@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   FACTIONS,
   PIECE_CARD,
@@ -86,23 +87,27 @@ function RankCard({
   onPrev: () => void;
   onNext: () => void;
 }) {
-  return (
+  // Portal past setup's scroll/stacking context so Begin match (z-20) cannot cover Prev/Next.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-bg/80 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-bg/85 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${faction.name} ${PIECE_LABEL[type]}`}
     >
       <div
-        className="panel w-full max-w-sm rounded-[28px] px-5 pb-5 pt-4"
+        className="panel flex max-h-[min(92dvh,40rem)] w-full max-w-sm flex-col overflow-y-auto rounded-[28px] px-5 pb-5 pt-4"
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-xs uppercase tracking-[0.22em] text-gold">{faction.name}</p>
         <p className="font-display mt-1 text-4xl leading-none">{PIECE_LABEL[type]}</p>
         <p className="mt-1 text-sm text-muted">{faction.epithet}</p>
-        <div className="mt-4 flex h-[42vh] max-h-80 items-end justify-center">
+        <div className="mt-4 flex h-[min(38vh,18rem)] shrink-0 items-end justify-center">
           {pieceImg(faction, type, "h-full w-auto max-w-full object-contain object-bottom")}
         </div>
         <p className="mt-4 text-sm text-pretty text-muted">{PIECE_CARD[type]}</p>
-        <div className="mt-5 flex gap-2">
+        <div className="mt-5 flex shrink-0 gap-2">
           <Button variant="subtle" className="flex-1" onClick={onPrev}>
             Prev
           </Button>
@@ -114,7 +119,8 @@ function RankCard({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
