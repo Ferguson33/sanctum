@@ -1,11 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, Swords, Smartphone, Users } from "lucide-react";
-import { ArmyPick } from "@/components/chess/ArmyPick";
+import { ArrowRight, Swords, Smartphone, Users } from "lucide-react";
 import { HeroLineup } from "@/components/chess/HeroLineup";
 import { Button } from "@/components/ui/button";
-import { BOARD_THEMES, getFaction } from "@/lib/chess/catalog";
-import { hostKey, makeRoomCode } from "@/lib/chess/net";
+import { getFaction } from "@/lib/chess/catalog";
+import { hostKey } from "@/lib/chess/net";
 import { AI_LEVELS, warmOpponent, type AiLevelId } from "@/lib/chess/opponent";
 import { usePrefs } from "@/lib/chess/prefs";
 import { cn } from "@/lib/utils";
@@ -21,7 +20,6 @@ function Home() {
   const prefs = usePrefs();
   const [code, setCode] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
-  const [armiesOpen, setArmiesOpen] = useState(false);
   const [aiClock, setAiClock] = useState(300);
   const CLOCK_OPTS: { sec: number; label: string; blurb: string }[] = [
     { sec: 0, label: "No clock", blurb: "Open table" },
@@ -37,28 +35,23 @@ function Home() {
     if (next === "ai") warmOpponent();
   }
 
-  function playAi(lvl: AiLevelId) {
+  function goSetupAi(lvl: AiLevelId) {
     warmOpponent();
     void nav({
-      to: "/play",
+      to: "/setup",
       search: {
-        vs: "ai",
+        mode: "ai",
         lvl,
         ...(aiClock > 0 ? { clock: String(aiClock) } : {}),
       },
     });
   }
 
-  function startDuel(clockSec: number) {
-    const room = makeRoomCode();
-    localStorage.setItem(hostKey(room), "1");
+  function goSetupDuel(clockSec: number) {
     void nav({
-      to: "/r/$code",
-      params: { code: room },
+      to: "/setup",
       search: {
-        w: prefs.wFaction,
-        board: prefs.boardId,
-        open: "1",
+        mode: "duel",
         ...(clockSec > 0 ? { clock: String(clockSec) } : {}),
       },
     });
@@ -68,7 +61,6 @@ function Home() {
     e.preventDefault();
     const room = code.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     if (room.length < 4) return;
-    // Joiners must never arrive marked as host for this room.
     localStorage.removeItem(hostKey(room));
     void nav({ to: "/r/$code", params: { code: room }, search: {} });
   }
@@ -84,7 +76,11 @@ function Home() {
         <HeroLineup />
         <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-bg via-bg/80 to-transparent px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8">
           <div className="mx-auto flex max-w-md flex-col gap-2">
-            <Button size="lg" className="w-full" onClick={() => nav({ to: "/play" })}>
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={() => nav({ to: "/setup", search: { mode: "local" } })}
+            >
               <Users className="size-4" /> Pass and play
             </Button>
             <Button size="lg" variant="ghost" className="w-full" onClick={() => toggle("ai")}>
@@ -114,7 +110,7 @@ function Home() {
                     <button
                       key={l.id}
                       type="button"
-                      onClick={() => playAi(l.id)}
+                      onClick={() => goSetupAi(l.id)}
                       className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
                     >
                       <span className="font-display block text-lg leading-none">{l.name}</span>
@@ -131,8 +127,8 @@ function Home() {
             {panel === "start" && (
               <div className="flex flex-col gap-2 rounded-[20px] border border-border bg-bg/60 p-3">
                 <p className="text-sm text-pretty text-muted">
-                  Only <span className="text-fg">one</span> phone starts. You sit white as {myArmy.name}. They tap{" "}
-                  <span className="text-fg">Join a duel</span> (or open your share link).
+                  Only <span className="text-fg">one</span> phone starts. Next you’ll pick your army, then send the
+                  invite. They tap <span className="text-fg">Join a duel</span>.
                 </p>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Clock</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -140,7 +136,7 @@ function Home() {
                     <button
                       key={c.sec}
                       type="button"
-                      onClick={() => startDuel(c.sec)}
+                      onClick={() => goSetupDuel(c.sec)}
                       className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
                     >
                       <span className="font-display block text-lg leading-none">{c.label}</span>
@@ -178,76 +174,12 @@ function Home() {
                 </div>
               </form>
             )}
+
+            <p className="pt-1 text-center text-[11px] text-muted">
+              Last white seat: {myArmy.name} · armies chosen on the next screen
+            </p>
           </div>
         </div>
-      </section>
-
-      <section className="px-5 py-10">
-        <button
-          type="button"
-          onClick={() => setArmiesOpen((v) => !v)}
-          className="flex w-full items-center justify-between gap-3 rounded-[20px] border border-border bg-surface/50 px-4 py-3 text-left"
-        >
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.22em] text-gold">Armies & boards</p>
-            <p className="mt-1 truncate text-sm text-muted">
-              Your white seat: {myArmy.name}
-              {!armiesOpen ? " · tap to change" : ""}
-            </p>
-          </div>
-          <ChevronDown className={cn("size-5 shrink-0 text-muted transition", armiesOpen && "rotate-180")} />
-        </button>
-
-        {armiesOpen && (
-          <div className="mt-6">
-            <p className="mb-6 text-sm text-pretty text-muted">
-              Used for pass-and-play and when you <span className="text-fg">Start a duel</span> (you sit white). A joining
-              phone picks their own army after they connect — not here.
-            </p>
-            <ArmyPick
-              kicker="Your host"
-              note="Tap an army to inspect king through pawn. You sit this host as white."
-              selected={prefs.wFaction}
-              taken={prefs.bFaction}
-              onSelect={(id) => prefs.setWFaction(id)}
-            />
-
-            <div className="mt-10">
-              <ArmyPick
-                kicker="Other throne (pass and play)"
-                note="Only for pass-and-play on this phone. Online duelists choose on their own device."
-                selected={prefs.bFaction}
-                taken={prefs.wFaction}
-                onSelect={(id) => prefs.setBFaction(id)}
-              />
-            </div>
-
-            <p className="mt-10 text-xs uppercase tracking-[0.22em] text-muted">Boards</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {BOARD_THEMES.map((theme) => (
-                <button
-                  key={theme.id}
-                  type="button"
-                  onClick={() => prefs.setBoardId(theme.id)}
-                  className={cn(
-                    "overflow-hidden rounded-[20px] border",
-                    prefs.boardId === theme.id ? "border-ivory" : "border-border",
-                  )}
-                >
-                  <span
-                    className="block h-16 w-full"
-                    style={{
-                      backgroundImage: theme.light && theme.dark ? `url(${theme.dark})` : undefined,
-                      backgroundColor: "#1c1814",
-                      backgroundSize: "cover",
-                    }}
-                  />
-                  <span className="block px-2 py-2 text-left text-xs font-medium">{theme.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
     </main>
   );
