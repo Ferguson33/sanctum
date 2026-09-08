@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlayRouteImport } from './routes/play'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as ApiRtcRouteImport } from './routes/api/rtc'
 import { Route as RCodeRouteImport } from './routes/r.$code'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const PlayRoute = PlayRouteImport.update({
   id: '/play',
   path: '/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRtcRoute = ApiRtcRouteImport.update({
@@ -38,12 +44,14 @@ const RCodeRoute = RCodeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
+  '/setup': typeof SetupRoute
   '/api/rtc': typeof ApiRtcRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
+  '/setup': typeof SetupRoute
   '/api/rtc': typeof ApiRtcRoute
   '/r/$code': typeof RCodeRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
+  '/setup': typeof SetupRoute
   '/api/rtc': typeof ApiRtcRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/play' | '/api/rtc' | '/r/$code'
+  fullPaths: '/' | '/play' | '/setup' | '/api/rtc' | '/r/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/play' | '/api/rtc' | '/r/$code'
-  id: '__root__' | '/' | '/play' | '/api/rtc' | '/r/$code'
+  to: '/' | '/play' | '/setup' | '/api/rtc' | '/r/$code'
+  id: '__root__' | '/' | '/play' | '/setup' | '/api/rtc' | '/r/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PlayRoute: typeof PlayRoute
+  SetupRoute: typeof SetupRoute
   ApiRtcRoute: typeof ApiRtcRoute
   RCodeRoute: typeof RCodeRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/play'
       fullPath: '/play'
       preLoaderRoute: typeof PlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/rtc': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PlayRoute: PlayRoute,
+  SetupRoute: SetupRoute,
   ApiRtcRoute: ApiRtcRoute,
   RCodeRoute: RCodeRoute,
 }
