@@ -137,7 +137,7 @@ export function tableFrom(envs: Envelope[]): TableWire | undefined {
   return undefined;
 }
 
-export async function sendWithRetry(room: string, from: string, payload: unknown, tries = 4) {
+export async function sendWithRetry(room: string, from: string, payload: unknown, tries = 3) {
   let last: unknown;
   for (let i = 0; i < tries; i++) {
     try {
@@ -145,7 +145,8 @@ export async function sendWithRetry(room: string, from: string, payload: unknown
       return;
     } catch (err) {
       last = err;
-      await new Promise((r) => setTimeout(r, 200 * (i + 1)));
+      // Back off hard — ntfy.sh 429s when we hammer it.
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
     }
   }
   throw last instanceof Error ? last : new Error("mailbox send failed");

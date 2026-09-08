@@ -118,11 +118,15 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     };
   }, [enabled, room, selfId, name]);
 
+  const sendChain = useRef(Promise.resolve());
   const send = useCallback(
     (data: unknown) => {
       const key = payloadKey(data);
       if (key) seenKeys.current.add(key);
-      void sendWithRetry(room, selfId, data).catch(() => {});
+      // Queue publishes so End-turn + have acks don't race into ntfy 429s.
+      sendChain.current = sendChain.current
+        .then(() => sendWithRetry(room, selfId, data))
+        .catch(() => {});
     },
     [room, selfId],
   );
