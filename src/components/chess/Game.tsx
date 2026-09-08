@@ -570,7 +570,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       setSendStuck(false);
       return;
     }
-    const id = window.setTimeout(() => setSendStuck(true), 8000);
+    const id = window.setTimeout(() => setSendStuck(true), 12000);
     return () => window.clearTimeout(id);
   }, [handoff]);
 
@@ -593,13 +593,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           ? { profileId: localProfile.id, profileName: localProfile.displayName }
           : {}),
       };
-      void Promise.resolve(p2p.send(msg)).then(() => {
-        if (handoffRef.current === "sending") setHandoff("theirs");
-      });
+      p2p.send(msg);
     };
     push();
-    const retry = window.setTimeout(push, 4000);
-    return () => window.clearTimeout(retry);
+    const t1 = window.setTimeout(push, 1200);
+    const t2 = window.setTimeout(push, 2800);
+    const id = window.setInterval(push, 3500);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearInterval(id);
+    };
   }, [handoff, mode]); // eslint-disable-line
 
   const canMove = useCallback(
