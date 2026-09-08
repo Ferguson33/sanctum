@@ -93,8 +93,8 @@ function MyGamesPage() {
         </header>
 
         <p className="text-sm text-pretty text-muted">
-          Open linked duels you can pause and reopen — both phones stay on the same room code. Guests play live
-          only; sign in as host to save a game.
+          Open duels and seat challenges. A challenge from the standings shows up here — open Sanctum from the icon,
+          no link.
         </p>
 
         {seatLoading || loading ? (
@@ -117,9 +117,17 @@ function MyGamesPage() {
             {games.map((g) => {
               const w = getFaction(g.wFaction);
               const b = g.bFaction ? getFaction(g.bFaction) : null;
-              const title = b ? tableName(w, b) : w.name;
+              const challenge = g.ply <= 0 && !g.bFaction;
+              const title = b ? tableName(w, b) : challenge && g.mySide === "b" ? `${w.name} challenged you` : w.name;
               const turn = g.fen.split(" ")[1] === "b" ? "Black" : "White";
-              const sideLabel = g.mySide === "b" ? "You · black" : "You · white";
+              const sideLabel =
+                challenge && g.mySide === "b"
+                  ? "Pick your army"
+                  : challenge
+                    ? "Waiting for them"
+                    : g.mySide === "b"
+                      ? "You · black"
+                      : "You · white";
               return (
                 <li key={g.id}>
                   <button
@@ -141,7 +149,9 @@ function MyGamesPage() {
                         {formatAgo(g.updatedAt)}
                       </p>
                     </div>
-                    <span className="text-xs text-gold">Open</span>
+                    <span className="text-xs text-gold">
+                      {challenge && g.mySide === "b" ? "Sit" : "Open"}
+                    </span>
                   </button>
                 </li>
               );

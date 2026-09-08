@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Swords, Smartphone, Users } from "lucide-react";
+import { ArrowRight, Link2, Swords, Trophy, Users } from "lucide-react";
 import { HeroLineup } from "@/components/chess/HeroLineup";
 import { Button } from "@/components/ui/button";
 import { factionSrc, getFaction, type PieceType } from "@/lib/chess/catalog";
@@ -160,13 +160,13 @@ function Home() {
             )}
 
             <Button size="lg" variant="ghost" className="w-full" onClick={() => toggle("start")}>
-              <Smartphone className="size-4" /> Start a duel
+              <Link2 className="size-4" /> Invite a guest
             </Button>
             {panel === "start" && (
               <div className="flex flex-col gap-2 rounded-[20px] border border-border bg-bg/60 p-3">
                 <p className="text-sm text-pretty text-muted">
-                  Only <span className="text-fg">one</span> phone starts. Next you’ll pick your army, then send the
-                  invite. They tap <span className="text-fg">Join a duel</span>.
+                  Sends a <span className="text-fg">link</span>. For someone who doesn’t have a seat yet. You pick
+                  your army, they open the link (or type the code).
                 </p>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Clock</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -185,8 +185,23 @@ function Home() {
               </div>
             )}
 
+            <Button
+              size="lg"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                if (!profile) {
+                  void nav({ to: "/profile" });
+                  return;
+                }
+                void nav({ to: "/standings" });
+              }}
+            >
+              <Trophy className="size-4" /> Duel a seat
+            </Button>
+
             <Button size="lg" variant="ghost" className="w-full" onClick={() => toggle("join")}>
-              <ArrowRight className="size-4" /> Join a duel
+              <ArrowRight className="size-4" /> Enter a code
             </Button>
             {panel === "join" && (
               <form
@@ -194,7 +209,7 @@ function Home() {
                 className="flex flex-col gap-2 rounded-[20px] border border-border bg-bg/60 p-3"
               >
                 <p className="text-sm text-pretty text-muted">
-                  Paste the room code they shared — or open their link. Don’t tap Start on this phone.
+                  Guest of a link: paste the room code. Don’t invite from this phone.
                 </p>
                 <div className="flex gap-2">
                   <input

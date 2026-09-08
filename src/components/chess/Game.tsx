@@ -79,6 +79,8 @@ interface GameProps {
   aiLevel?: AiLevelId;
   /** Seconds per side for online challenge clocks (0 = off). */
   clockSec?: number;
+  /** Display name when this duel was sent to a leaderboard seat. */
+  inviteSeat?: string;
 }
 
 export function Game(props: GameProps) {
@@ -108,7 +110,7 @@ class TableGuard extends Component<{ children: ReactNode }, { failed: boolean }>
   }
 }
 
-function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight", clockSec = 0 }: GameProps) {
+function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight", clockSec = 0, inviteSeat }: GameProps) {
   const prefs = usePrefs();
   const [table, setTable] = useState<TableWire>(() => {
     if (invite?.w) return { w: invite.w, b: invite.b, board: invite.board };
@@ -1323,19 +1325,26 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             <p className="font-display mt-1 text-4xl">{wFaction.name}</p>
             <p className="mt-3 font-display text-3xl tracking-[0.18em] text-ivory">{room}</p>
             <p className="mt-2 text-sm text-muted text-pretty">
-              Share the link (or read them the code). They tap Join a duel, pick an army, then Play — only then the match
-              starts.
+              {inviteSeat
+                ? `${inviteSeat} will see this under My games. They open Sanctum from the icon — no link.`
+                : "Share the link (or read them the code). They tap Enter a code, pick an army, then Play — only then the match starts."}
             </p>
             <p className="mt-3 text-xs text-gold">
               {connectedPeer || linked
-                ? "They’re in — waiting for them to pick an army…"
+                ? inviteSeat
+                  ? `They’re in — waiting for ${inviteSeat} to pick an army…`
+                  : "They’re in — waiting for them to pick an army…"
                 : p2p.joined
-                  ? "Waiting for their phone…"
+                  ? inviteSeat
+                    ? `Waiting for ${inviteSeat}…`
+                    : "Waiting for their phone…"
                   : "Connecting…"}
             </p>
-            <Button className="mt-4 w-full" onClick={shareRoom}>
-              <Share2 className="size-4" /> Share link
-            </Button>
+            {inviteSeat ? null : (
+              <Button className="mt-4 w-full" onClick={shareRoom}>
+                <Share2 className="size-4" /> Share link
+              </Button>
+            )}
           </div>
         </div>
       )}

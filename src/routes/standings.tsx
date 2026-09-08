@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,7 @@ function Crest({ faction, piece, className }: { faction: string; piece: string; 
 }
 
 function StandingsPage() {
+  const nav = useNavigate();
   const { profile, loading: seatLoading } = useProfile();
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,8 +101,7 @@ function StandingsPage() {
         </header>
 
         <p className="text-sm text-pretty text-muted">
-          Wins and losses from linked online duels — only when both phones are signed in and the game ends with a
-          winner. Pass-and-play and AI stay guests.
+          Wins and losses from linked online duels. Tap a seat to duel them — they see it under My games, no link.
         </p>
 
         {loading ? (
@@ -195,7 +195,24 @@ function StandingsPage() {
             ) : (
               <p className="mt-3 text-sm text-muted">Could not load head-to-head.</p>
             )}
-            <Button variant="ghost" className="mt-3 w-full" onClick={() => setSelected(null)}>
+            {profile && selected.id !== profile.id ? (
+              <Button
+                className="mt-3 w-full"
+                onClick={() =>
+                  void nav({
+                    to: "/setup",
+                    search: {
+                      mode: "duel",
+                      vs: selected.id,
+                      seat: selected.displayName,
+                    },
+                  })
+                }
+              >
+                Duel {selected.displayName}
+              </Button>
+            ) : null}
+            <Button variant="ghost" className="mt-2 w-full" onClick={() => setSelected(null)}>
               Close
             </Button>
           </section>
