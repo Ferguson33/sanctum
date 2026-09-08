@@ -217,8 +217,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (mode === "local") return army;
     if (mode === "ai") return side === "w" ? localProfile?.displayName?.trim() || army : army;
     if (side === mySide) return localProfile?.displayName?.trim() || army;
-    const peer = connectedPeer?.name?.trim() || inviteSeat?.trim();
-    return peer || army;
+    if (connectedPeer?.profileId && connectedPeer.name?.trim()) return connectedPeer.name.trim();
+    if (side === "b" && inviteSeat?.trim()) return inviteSeat.trim();
+    return army;
   }
   const skipParade = useCallback(() => {
     unlockAudio();
