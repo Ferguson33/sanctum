@@ -148,7 +148,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const incomingPly = useRef(false);
   handoffRef.current = handoff;
 
-  const [clockLimit, setClockLimit] = useState(() => (mode === "online" && clockSec > 0 ? clockSec : 0));
+  const [clockLimit, setClockLimit] = useState(() =>
+    (mode === "online" || mode === "ai") && clockSec > 0 ? clockSec : 0,
+  );
   const [clocks, setClocks] = useState(() => {
     const ms = clockLimit * 1000;
     return { w: ms, b: ms };
@@ -198,11 +200,15 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setParade(true);
   }, [mode, seated]);
 
-  // Challenge clocks tick only while handoff is idle (turn has been pushed).
+  // Clocks: online only after handoff idle (turn pushed); AI on the side to move.
   useEffect(() => {
-    if (!clockLimit || parade || ending || phase === "over") return;
-    if (handoff !== "idle") return;
-    if (!seated) return;
+    if (!clockLimit || parade || ending || phase === "over" || phase === "animating") return;
+    if (mode === "online") {
+      if (handoff !== "idle") return;
+      if (!seated) return;
+    } else if (mode !== "ai") {
+      return;
+    }
     const side = turn;
     const id = window.setInterval(() => {
       setClocks((c) => {
@@ -852,7 +858,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </div>
       )}
 
-      {clockLimit > 0 && seated && (
+      {clockLimit > 0 && (mode === "ai" || seated) && (
         <div className="relative z-10 flex shrink-0 items-center justify-center gap-6 px-4 py-1 text-sm tabular-nums">
           <span className={cn(turn === "w" && handoff === "idle" ? "text-gold" : "text-muted")}>
             {wFaction.name} {formatClock(clocks.w)}
