@@ -1362,7 +1362,7 @@ function formatClock(ms: number) {
 function endTitle(end: Ending, heaven: string, hell: string) {
   if (!end) return "";
   if (end.kind === "checkmate" || end.kind === "resign") {
-    return end.winner === "w" ? `${heaven} stands` : `${hell} stands`;
+    return end.winner === "w" ? `${heaven} wins` : `${hell} wins`;
   }
   return "Drawn";
 }
