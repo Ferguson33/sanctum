@@ -35,6 +35,7 @@ import {
 import {
   applyMoveToPieces,
   capturesBy,
+  castleSideOf,
   endingOf,
   legalMoves,
   needsPromotion,
@@ -123,6 +124,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [orientation, setOrientation] = useState<Side>("w");
   const [selected, setSelected] = useState<Square | null>(null);
   const [legal, setLegal] = useState<Square[]>([]);
+  const [castleRooks, setCastleRooks] = useState<Square[]>([]);
   const [caps, setCaps] = useState<Square[]>([]);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square; captured?: boolean } | null>(null);
   const [freshCap, setFreshCap] = useState<{ side: Side; type: PieceType; key: number } | null>(null);
@@ -388,11 +390,22 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
   function commitMove(from: Square, to: Square, promotion?: PieceType, remote = false) {
     const chess = chessRef.current;
+    // Firm rule: only chess.js-legal moves ever change the table.
+    const legalNow = chess.moves({ square: from, verbose: true });
+    const ok = legalNow.some(
+      (m) => m.from === from && m.to === to && (!promotion || m.promotion === promotion),
+    );
+    if (!ok) return;
     const move = playMove(chess, from, to, promotion);
     if (!move) return;
     setPieces((ps) => applyMoveToPieces(ps, move));
+    // Reconcile sprites to FEN so art can never drift into illegal geometry.
+    window.setTimeout(() => {
+      setPieces(piecesFromFen(chess.fen()));
+    }, 280);
     setSelected(null);
     setLegal([]);
+    setCastleRooks([]);
     setCaps([]);
     setPending(null);
     setPhase("animating");
@@ -566,9 +579,10 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
 
   /** Rook square used to request O-O / O-O-O (avoids fat-finger on g/c files). */
-  function castleRookOf(color: Side, flags: string): Square | null {
-    if (flags.includes("k")) return (color === "w" ? "h1" : "h8") as Square;
-    if (flags.includes("q")) return (color === "w" ? "a1" : "a8") as Square;
+  function castleRookOf(color: Side, move: MoveRec): Square | null {
+    const side = castleSideOf(move);
+    if (side === "k") return (color === "w" ? "h1" : "h8") as Square;
+    if (side === "q") return (color === "w" ? "a1" : "a8") as Square;
     return null;
   }
 
@@ -581,23 +595,23 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (phase === "selected" && selected) {
       const selPiece = chess.get(selected);
       if (selPiece?.type === "k") {
-        const castles = legalMoves(chess, selected).filter(
-          (m) => m.flags.includes("k") || m.flags.includes("q"),
-        );
+        const castles = legalMoves(chess, selected).filter((m) => castleSideOf(m));
         const onRook = chess.get(sq);
-        if (onRook?.type === "r" && onRook.color === chess.turn()) {
-          const match = castles.find((m) => castleRookOf(selPiece.color as Side, m.flags) === sq);
+        // Intentional castle: king selected, then the matching rook.
+        if (onRook?.type === "r" && onRook.color === chess.turn() && castleRooks.includes(sq)) {
+          const match = castles.find((m) => castleRookOf(selPiece.color as Side, m) === sq);
           if (match) {
             commitMove(selected, match.to);
             return;
           }
         }
-        // Ignore direct taps on g1/c1 (etc.) — those were easy to hit by accident.
+        // Never treat g1/c1 (castle landings) as a casual king tap.
         if (castles.some((m) => m.to === sq)) {
           return;
         }
       }
 
+      // Rook squares are NOT normal legal destinations for the king.
       if (legal.includes(sq) || caps.includes(sq)) {
         if (needsPromotion(chess, selected, sq)) {
           setPending({ from: selected, to: sq });
@@ -613,25 +627,28 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     if (piece && piece.color === chess.turn()) {
       const moves = legalMoves(chess, sq);
       if (piece.type === "k") {
-        const castles = moves.filter((m) => m.flags.includes("k") || m.flags.includes("q"));
-        const rest = moves.filter((m) => !m.flags.includes("k") && !m.flags.includes("q"));
+        const castles = moves.filter((m) => castleSideOf(m));
+        const rest = moves.filter((m) => !castleSideOf(m));
         const rookDots = castles
-          .map((m) => castleRookOf(piece.color as Side, m.flags))
+          .map((m) => castleRookOf(piece.color as Side, m))
           .filter((r): r is Square => r != null);
         setSelected(sq);
-        setLegal([...rest.filter((m) => !m.captured).map((m) => m.to), ...rookDots]);
+        setLegal(rest.filter((m) => !m.captured).map((m) => m.to));
+        setCastleRooks(rookDots);
         setCaps(rest.filter((m) => m.captured).map((m) => m.to));
         setPhase("selected");
         return;
       }
       setSelected(sq);
       setLegal(moves.filter((m) => !m.captured).map((m) => m.to));
+      setCastleRooks([]);
       setCaps(moves.filter((m) => m.captured).map((m) => m.to));
       setPhase("selected");
       return;
     }
     setSelected(null);
     setLegal([]);
+    setCastleRooks([]);
     setCaps([]);
     setPhase("idle");
   }
@@ -647,6 +664,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setLastMove(null);
     setSelected(null);
     setLegal([]);
+    setCastleRooks([]);
     setCaps([]);
     setPending(null);
     setEnding(null);
@@ -690,7 +708,12 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     flash({ kind: "sat", title: "They think", body: `${bFaction.name} considers the ply.` }, 1600);
     void think(chess.fen(), aiLevel)
       .then((mv) => {
-        if (chessRef.current.turn() !== "b" || chessRef.current.isGameOver()) return;
+        const now = chessRef.current;
+        if (now.turn() !== "b" || now.isGameOver()) return;
+        const allowed = now.moves({ verbose: true }).some(
+          (m) => m.from === mv.from && m.to === mv.to && (!mv.promotion || m.promotion === mv.promotion),
+        );
+        if (!allowed) return;
         incomingPly.current = true;
         commitMove(mv.from, mv.to, mv.promotion, true);
       })
@@ -852,7 +875,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           pieces={pieces}
           orientation={orientation}
           selected={selected}
-          legal={legal}
+          legal={[...legal, ...castleRooks]}
           captures={caps}
           lastMove={lastMove}
           impact={impact}
