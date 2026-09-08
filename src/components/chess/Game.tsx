@@ -1161,17 +1161,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         fresh={freshCap && freshCap.side === (orientation === "w" ? "b" : "w") ? freshCap : null}
       />
 
-      <footer className="relative z-10 flex shrink-0 items-center gap-2 bg-gradient-to-t from-bg via-bg/80 to-transparent px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1">
+      <footer className="relative z-20 flex shrink-0 items-center gap-2 border-t border-border bg-bg/95 px-3 pt-2 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.6rem))] backdrop-blur">
         {mode === "online" ? (
           <>
             {handoff === "ready" || handoff === "sending" ? (
               <>
-                <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
+                <Button variant="subtle" size="lg" onClick={undo} disabled={handoff !== "ready"}>
                   <Undo2 className="size-4" /> Undo
                 </Button>
                 <Button
-                  size="sm"
-                  className="ml-auto"
+                  size="lg"
+                  className="min-w-0 flex-1"
                   onClick={endTurn}
                   disabled={handoff === "sending" && !sendStuck}
                 >
