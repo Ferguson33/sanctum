@@ -159,7 +159,7 @@ function SetupPage() {
             mode === "duel"
               ? vsSeat
                 ? liveSeat
-                  ? `${seatName || "They"} must accept in Sanctum in the next minute. Clock starts when both of you are sitting.`
+                  ? `${seatName || "They"} must accept in Sanctum within five minutes. Clock starts when both of you are sitting.`
                   : `${seatName || "They"} will see this on My games. No clock.`
                 : "You play white. They pick a different army from the link."
               : "Tap an army to inspect king through pawn."

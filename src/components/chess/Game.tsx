@@ -50,14 +50,8 @@ import { playHaptic } from "@/lib/chess/haptic";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
 import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
-import {
-  fetchGameByRoom,
-  finishGameClient,
-  deferGameLaterClient,
-  recordMatchClient,
-  upsertGameClient,
-  useProfile,
-} from "@/lib/profile/client";
+import { fetchGameByRoom, finishGameClient, recordMatchClient, upsertGameClient, useProfile } from "@/lib/profile/client";
+import { LIVE_ACCEPT_SEC } from "@/lib/profile/types";
 import { cn } from "@/lib/utils";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -147,7 +141,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [linked, setLinked] = useState(false);
   const [handoff, setHandoff] = useState<Handoff>("idle");
   const [sendStuck, setSendStuck] = useState(false);
-  const [liveLeft, setLiveLeft] = useState(inviteKind === "live" ? 90 : 0);
+  const [liveLeft, setLiveLeft] = useState(inviteKind === "live" ? LIVE_ACCEPT_SEC : 0);
   const [liveMissed, setLiveMissed] = useState(false);
   const [seatKind, setSeatKind] = useState(inviteKind);
   const [callout, setCallout] = useState<Callout>(null);
@@ -231,18 +225,19 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   useEffect(() => {
     if (inviteKind !== "live" || seated || !host) return;
     if (liveMissed) return;
-    const id = window.setInterval(() => {
-      setLiveLeft((n) => {
-        if (n <= 1) {
-          window.clearInterval(id);
-          setLiveMissed(true);
-          return 0;
-        }
-        return n - 1;
-      });
-    }, 1000);
+    const until = Date.now() + LIVE_ACCEPT_SEC * 1000;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      setLiveLeft(left);
+      if (left <= 0) {
+        setLiveMissed(true);
+        if (room) void finishGameClient(room).catch(() => {});
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [inviteKind, seated, host, liveMissed]);
+  }, [inviteKind, seated, host, liveMissed, room]);
 
   // Clocks: online only after handoff idle (turn pushed); AI on the side to move.
   // Debit chessRef.turn() each tick so React turn lag cannot leave White running forever.
@@ -1351,14 +1346,16 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             <p className="mt-2 text-sm text-muted text-pretty">
               {seatKind === "live"
                 ? liveMissed
-                  ? `${inviteSeat || "They"} didn’t sit in time. Send it as a later challenge (no clock) or leave.`
-                  : `${inviteSeat || "They"} must accept in Sanctum now. Clock starts when both phones are sitting.`
+                  ? `${inviteSeat || "They"} didn’t take their seat. This live call ended.`
+                  : `${inviteSeat || "They"} has five minutes to join in Sanctum. Clock starts when both of you are sitting.`
                 : inviteSeat
                   ? `${inviteSeat} will see this under My games. They open Sanctum from the icon — no link, no clock.`
                   : "Share the link (or read them the code). They tap Enter a code, pick an army, then Play — only then the match starts."}
             </p>
             {seatKind === "live" && !liveMissed ? (
-              <p className="mt-3 font-display text-2xl text-gold">{liveLeft}s</p>
+              <p className="mt-3 font-display text-2xl text-gold">
+                {Math.floor(liveLeft / 60)}:{String(liveLeft % 60).padStart(2, "0")}
+              </p>
             ) : null}
             <p className="mt-3 text-xs text-gold">
               {connectedPeer || linked
@@ -1371,19 +1368,10 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                     : "Waiting for their phone…"
                   : "Connecting…"}
             </p>
-            {seatKind === "live" && liveMissed && room ? (
-              <Button
-                className="mt-4 w-full"
-                onClick={() => {
-                  void deferGameLaterClient(room).catch(() => {});
-                  setClockLimit(0);
-                  setLiveMissed(false);
-                  setLiveLeft(0);
-                  setSeatKind("later");
-                }}
-              >
-                Send as later
-              </Button>
+            {seatKind === "live" && liveMissed ? (
+              <Link to="/" className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-[14px] bg-ivory text-base font-medium text-bg">
+                Back home
+              </Link>
             ) : null}
             {inviteSeat || seatKind ? null : (
               <Button className="mt-4 w-full" onClick={shareRoom}>

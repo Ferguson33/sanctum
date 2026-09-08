@@ -5,89 +5,120 @@ import { getFaction } from "@/lib/chess/catalog";
 import { hostKey } from "@/lib/chess/net";
 import { fetchMyGames, finishGameClient, useProfile, type GameRow } from "@/lib/profile/client";
 
-function isLiveOpen(g: GameRow, selfId: string): boolean {
-  if (g.status !== "open" || g.challenge !== "live") return false;
+function isIncoming(g: GameRow, selfId: string): boolean {
+  if (g.status !== "open") return false;
   if (g.mySide !== "b" && g.blackProfileId !== selfId) return false;
   if (g.ply > 0 || g.bFaction) return false;
-  if (!g.expiresAt) return true;
-  const t = Date.parse(g.expiresAt);
-  return !Number.isFinite(t) || t > Date.now();
+  if (g.challenge === "live") {
+    if (!g.expiresAt) return true;
+    const t = Date.parse(g.expiresAt);
+    return !Number.isFinite(t) || t > Date.now();
+  }
+  return g.challenge === "later" || !g.challenge;
 }
 
-export function IncomingChallenge() {
+export function joinChallengeSearch(g: GameRow): Record<string, string> {
+  const search: Record<string, string> = { w: g.wFaction, board: g.board, open: "1" };
+  if (g.clockLimitSec && g.clockLimitSec > 0) search.clock = String(g.clockLimitSec);
+  if (g.challenge === "live" || g.challenge === "later") search.kind = g.challenge;
+  return search;
+}
+
+export function openChallenge(
+  g: GameRow,
+  nav: ReturnType<typeof useNavigate>,
+) {
+  const room = g.room.toUpperCase();
+  localStorage.removeItem(hostKey(room));
+  void nav({ to: "/r/$code", params: { code: room }, search: joinChallengeSearch(g) });
+}
+
+export function useIncomingGames() {
   const { profile } = useProfile();
-  const nav = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [live, setLive] = useState<GameRow | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [games, setGames] = useState<GameRow[]>([]);
 
   useEffect(() => {
     if (!profile?.id) {
-      setLive(null);
+      setGames([]);
       return;
     }
     let alive = true;
     const tick = async () => {
       try {
-        const { games } = await fetchMyGames();
+        const { games: rows } = await fetchMyGames();
         if (!alive) return;
-        const hit = games.find((g) => isLiveOpen(g, profile.id)) ?? null;
-        setLive(hit);
+        setGames(rows.filter((g) => isIncoming(g, profile.id)));
       } catch {
-        if (alive) setLive(null);
+        if (alive) setGames([]);
       }
     };
     void tick();
-    const id = window.setInterval(() => void tick(), 3500);
+    const id = window.setInterval(() => void tick(), 4000);
     return () => {
       alive = false;
       window.clearInterval(id);
     };
   }, [profile?.id]);
 
-  if (!live || !profile) return null;
-  const inThisRoom = pathname.toUpperCase().includes(`/R/${live.room.toUpperCase()}`);
+  const live = games.find((g) => g.challenge === "live") ?? null;
+  const later = games.filter((g) => g.challenge !== "live");
+  return { profile, live, later, incoming: live ?? later[0] ?? null };
+}
+
+function who(g: GameRow): string {
+  return g.whiteName?.trim() || getFaction(g.wFaction).name;
+}
+
+export function IncomingChallenge() {
+  const nav = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { incoming, live } = useIncomingGames();
+  const [busy, setBusy] = useState(false);
+  const [hidden, setHidden] = useState<string | null>(null);
+
+  if (!incoming) return null;
+  const inThisRoom = pathname.toUpperCase().includes(`/R/${incoming.room.toUpperCase()}`);
   if (inThisRoom) return null;
+  if (hidden === incoming.id) return null;
 
-  const hostArmy = getFaction(live.wFaction).name;
-  const mins = live.clockLimitSec && live.clockLimitSec > 0 ? Math.round(live.clockLimitSec / 60) : 0;
-
-  function accept() {
-    const room = live.room.toUpperCase();
-    localStorage.removeItem(hostKey(room));
-    const search: Record<string, string> = { w: live.wFaction, board: live.board, open: "1", kind: "live" };
-    if (live.clockLimitSec && live.clockLimitSec > 0) search.clock = String(live.clockLimitSec);
-    void nav({ to: "/r/$code", params: { code: room }, search });
-  }
+  const mins = incoming.clockLimitSec && incoming.clockLimitSec > 0 ? Math.round(incoming.clockLimitSec / 60) : 0;
+  const isLive = incoming.challenge === "live" || live?.id === incoming.id;
 
   async function decline() {
+    if (!isLive) {
+      setHidden(incoming.id);
+      return;
+    }
     setBusy(true);
     try {
-      await finishGameClient(live.room);
+      await finishGameClient(incoming.room);
     } catch {
       /* */
     }
-    setLive(null);
     setBusy(false);
+    setHidden(incoming.id);
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-bg/70 p-4 pb-[max(1.2rem,env(safe-area-inset-bottom))] sm:items-center">
-      <div className="panel w-full max-w-sm rounded-[28px] p-5 text-center">
-        <p className="text-xs uppercase tracking-[0.22em] text-gold">Live duel</p>
-        <p className="font-display mt-1 text-3xl leading-none">{hostArmy} called you</p>
-        <p className="mt-2 text-sm text-muted text-pretty">
-          They’re at the table now
-          {mins ? ` · ${mins} min each` : " · no clock"}. Accept only if you’re here.
-        </p>
-        <div className="mt-5 flex gap-2">
-          <Button variant="ghost" className="flex-1" onClick={() => void decline()} disabled={busy}>
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex justify-center px-3 pt-[max(0.55rem,env(safe-area-inset-top))]">
+      <div className="pointer-events-auto panel flex w-full max-w-md items-center gap-2 rounded-[18px] px-3 py-2.5 shadow-lg">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-gold">
+            {isLive ? "Game request" : "Waiting"}
+          </p>
+          <p className="truncate text-sm font-medium">
+            {who(incoming)}
+            {isLive ? (mins ? ` · ${mins} min` : " · live") : " · join when ready"}
+          </p>
+        </div>
+        {isLive ? (
+          <Button variant="ghost" size="sm" onClick={() => void decline()} disabled={busy}>
             Not now
           </Button>
-          <Button className="flex-1" onClick={accept} disabled={busy}>
-            Sit down
-          </Button>
-        </div>
+        ) : null}
+        <Button size="sm" onClick={() => openChallenge(incoming, nav)} disabled={busy}>
+          Join
+        </Button>
       </div>
     </div>
   );

@@ -40,4 +40,9 @@ export type GameRow = {
   /** live = both should be in the app now (clock ok). later = pick up on My games (no clock). */
   challenge?: "live" | "later" | null;
   expiresAt?: string | null;
+  whiteName?: string | null;
+  blackName?: string | null;
 };
+
+/** Live seat call window. Clock never starts until both have sat. */
+export const LIVE_ACCEPT_SEC = 300;

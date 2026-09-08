@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { hashPin, verifyPin } from "./pin";
 import type { GameRow, MatchRow, Profile, Standing } from "./types";
+import { LIVE_ACCEPT_SEC } from "./types";
 
 export type { GameRow, MatchRow, Profile, Standing } from "./types";
+export { LIVE_ACCEPT_SEC } from "./types";
 
 type ProfileRow = {
   id: string;
@@ -223,6 +225,8 @@ type GameDbRow = {
   updated_at: string | Date;
   challenge?: string | null;
   expires_at?: string | Date | null;
+  white_name?: string | null;
+  black_name?: string | null;
 };
 
 function toGameRow(row: GameDbRow, profileId?: string): GameRow {
@@ -249,6 +253,8 @@ function toGameRow(row: GameDbRow, profileId?: string): GameRow {
     updatedAt: String(row.updated_at),
     challenge: ch,
     expiresAt: row.expires_at ? String(row.expires_at) : null,
+    whiteName: row.white_name ?? null,
+    blackName: row.black_name ?? null,
     ...(mySide ? { mySide } : {}),
   };
 }
@@ -256,11 +262,25 @@ function toGameRow(row: GameDbRow, profileId?: string): GameRow {
 const GAME_SELECT = `id, room, fen, ply, w_faction, b_faction, board,
   clock_limit_sec, clock_w_ms, clock_b_ms,
   white_profile_id, black_profile_id, status, updated_at,
-  challenge, expires_at`;
+  challenge, expires_at,
+  (select display_name from sanctum.profiles p where p.id = white_profile_id) as white_name,
+  (select display_name from sanctum.profiles p where p.id = black_profile_id) as black_name`;
 
 /** Open games where the profile sits white or black. */
 export async function listMineGames(profileId: string): Promise<GameRow[]> {
   const sql = await getSql();
+  await sql.query(
+    `update sanctum.games
+        set status = 'finished', updated_at = now()
+      where status = 'open'
+        and challenge = 'live'
+        and ply = 0
+        and (b_faction is null or b_faction = '')
+        and expires_at is not null
+        and expires_at < now()
+        and (white_profile_id = $1 or black_profile_id = $1)`,
+    [profileId],
+  );
   const rows = await sql.query<GameDbRow>(
     `select ${GAME_SELECT}
      from sanctum.games
@@ -288,7 +308,7 @@ export async function getGameByRoom(
   return toGameRow(rows[0], profileId ?? undefined);
 }
 
-export const LIVE_ACCEPT_SEC = 90;
+export { LIVE_ACCEPT_SEC } from "./types";
 
 export type UpsertGameInput = {
   room: string;

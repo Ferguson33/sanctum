@@ -14,6 +14,7 @@ import {
   useProfile,
   type PublicProfile,
 } from "@/lib/profile/client";
+import { openChallenge, useIncomingGames } from "@/components/chess/IncomingChallenge";
 import type { MatchRow, Standing } from "@/lib/profile/types";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ function Crest({ faction, piece, className }: { faction: string; piece: string; 
 function StandingsPage() {
   const nav = useNavigate();
   const { profile, loading: seatLoading } = useProfile();
+  const { incoming } = useIncomingGames();
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -117,13 +119,15 @@ function StandingsPage() {
           <ul className="flex flex-col gap-2">
             {standings.map((row, i) => {
               const mine = profile?.id === row.id;
+              const fromThem = incoming && incoming.whiteProfileId === row.id ? incoming : null;
               return (
-                <li key={row.id}>
+                <li key={row.id} className="overflow-hidden rounded-[20px]">
                   <button
                     type="button"
                     onClick={() => void openH2H(row)}
                     className={cn(
                       "panel flex w-full items-center gap-3 rounded-[20px] px-3 py-3 text-left",
+                      fromThem && "rounded-b-none",
                       selected?.id === row.id && "border-ivory",
                     )}
                   >
@@ -146,6 +150,13 @@ function StandingsPage() {
                       <p className="text-[10px] uppercase tracking-[0.14em] text-muted">W–L</p>
                     </div>
                   </button>
+                  {fromThem ? (
+                    <div className="border-x border-b border-border bg-bg/70 px-3 py-2">
+                      <Button className="w-full" size="sm" onClick={() => openChallenge(fromThem, nav)}>
+                        Join now
+                      </Button>
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
