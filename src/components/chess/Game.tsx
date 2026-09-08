@@ -1,5 +1,5 @@
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess } from "chess.js";
 import {
   ChevronLeft,
@@ -144,7 +144,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [liveLeft, setLiveLeft] = useState(inviteKind === "live" ? LIVE_ACCEPT_SEC : 0);
   const [liveMissed, setLiveMissed] = useState(false);
   const [seatKind, setSeatKind] = useState(inviteKind);
+  const [leaveAsk, setLeaveAsk] = useState(false);
   const [callout, setCallout] = useState<Callout>(null);
+  const nav = useNavigate();
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
   const didParade = useRef(mode === "local" || mode === "ai");
   const [thinking, setThinking] = useState(false);
@@ -435,6 +437,34 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   );
   const persistGameRef = useRef(persistGame);
   persistGameRef.current = persistGame;
+
+  const goHome = useCallback(
+    (opts?: { resign?: boolean }) => {
+      if (mode === "online" && room) {
+        if (!seated && seatKind === "live") {
+          void finishGameClient(room).catch(() => {});
+        } else if (seated && localProfile?.id) {
+          persistGame();
+        }
+        if (opts?.resign && seated) {
+          const winner: Side = host ? "b" : "w";
+          setEnding({ kind: "resign", winner });
+          setPhase("over");
+          p2p.send({ t: "resign" } satisfies NetMsg);
+        }
+      }
+      void nav({ to: "/" });
+    },
+    [mode, room, seated, seatKind, localProfile?.id, persistGame, host, p2p, nav],
+  );
+
+  function onBack() {
+    if (mode === "online" && seated && clockLimit > 0 && !ending && phase !== "over") {
+      setLeaveAsk(true);
+      return;
+    }
+    goHome();
+  }
 
   // Hydrate from sanctum.games when reopening an empty live board.
   useEffect(() => {
@@ -1053,14 +1083,15 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-bg text-fg">
       <div aria-hidden className="arena-wash pointer-events-none absolute inset-0" />
 
-      <header className="relative z-10 flex shrink-0 items-center gap-2 bg-gradient-to-b from-bg via-bg/80 to-transparent px-2 pb-1 pt-[max(0.4rem,env(safe-area-inset-top))]">
-        <Link
-          to="/"
+      <header className="relative z-50 flex shrink-0 items-center gap-2 bg-gradient-to-b from-bg via-bg/80 to-transparent px-2 pb-1 pt-[max(0.4rem,env(safe-area-inset-top))]">
+        <button
+          type="button"
+          onClick={onBack}
           className="flex size-10 items-center justify-center rounded-[12px] border border-border bg-bg/50 text-muted"
           aria-label="Home"
         >
           <ChevronLeft className="size-5" />
-        </Link>
+        </button>
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg leading-none sm:text-xl">{title}</p>
           <p className="text-xs leading-snug text-muted text-pretty">
@@ -1335,6 +1366,26 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
       {settings && <SettingsSheet onClose={() => setSettings(false)} mode={mode} />}
 
+      {leaveAsk && (
+        <div className="absolute inset-0 z-[60] flex items-end justify-center bg-bg/70 p-4 pb-10">
+          <div className="panel w-full max-w-sm rounded-[28px] p-5 text-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-gold">Timed game</p>
+            <p className="font-display mt-1 text-3xl leading-none">Leave and resign?</p>
+            <p className="mt-2 text-sm text-muted text-pretty">
+              A clocked match ends if you leave. Untimed games stay on My games.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <Button variant="ghost" className="flex-1" onClick={() => setLeaveAsk(false)}>
+                Stay
+              </Button>
+              <Button className="flex-1" onClick={() => goHome({ resign: true })}>
+                Resign
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mode === "online" && !seated && host && (
         <div className="absolute inset-0 z-40 flex items-end justify-center bg-bg/70 p-4 pb-10">
           <div className="panel w-full max-w-md rounded-[28px] p-5 text-center">
@@ -1369,12 +1420,16 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                   : "Connecting…"}
             </p>
             {seatKind === "live" && liveMissed ? (
-              <Link to="/" className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-[14px] bg-ivory text-base font-medium text-bg">
+              <Button className="mt-4 w-full" onClick={() => goHome()}>
                 Back home
-              </Link>
-            ) : null}
+              </Button>
+            ) : (
+              <Button variant="ghost" className="mt-4 w-full" onClick={() => goHome()}>
+                {seatKind === "later" ? "Leave — it’s on My games" : "Cancel"}
+              </Button>
+            )}
             {inviteSeat || seatKind ? null : (
-              <Button className="mt-4 w-full" onClick={shareRoom}>
+              <Button className="mt-2 w-full" onClick={shareRoom}>
                 <Share2 className="size-4" /> Share link
               </Button>
             )}
@@ -1392,6 +1447,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
                 ? `${wFaction.name} plays white. Pick your army, then play to start.`
                 : "Connecting to their phone… you can still pick your army."}
             </p>
+            <Button variant="ghost" className="mb-4 w-full" onClick={() => goHome()}>
+              Cancel
+            </Button>
             <ArmyPick
               kicker="Your army"
               note={`${wFaction.name} already has white. Choose a different army, then play.`}
