@@ -227,7 +227,6 @@ export function Board({
                   faction={p.color === "w" ? wFaction : bFaction}
                   selected={selected === p.square}
                   landing={lastMove?.to === p.square}
-                  landKey={lastMove ? `${lastMove.from}${lastMove.to}` : ""}
                 />
               ))}
             </div>
@@ -284,14 +283,12 @@ function PieceView({
   faction,
   selected,
   landing,
-  landKey,
 }: {
   piece: LivePiece;
   orientation: Side;
   faction: Faction;
   selected: boolean;
   landing: boolean;
-  landKey: string;
 }) {
   const fi = fileIndex(piece.square);
   const ri = rankIndex(piece.square);
@@ -331,7 +328,7 @@ function PieceView({
         )}
       >
         <img
-          key={landing ? landKey : piece.id}
+          key={piece.id}
           src={factionSrc(faction, piece.type)}
           alt={label}
           draggable={false}
