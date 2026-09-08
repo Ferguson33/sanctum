@@ -98,6 +98,13 @@ const KINGDOM_SCALE = {
   fit: "statue" as const,
 };
 
+/** Mechs — helicopter bishop is wide; infantry pawns stay small. */
+const MECH_SCALE = {
+  scale: { width: 0.96, height: 1.16 },
+  typeScale: { r: 1.08, n: 1.04, q: 1.12, k: 1.16, b: 1.1, p: 0.7 } as Partial<Record<PieceType, number>>,
+  fit: "statue" as const,
+};
+
 export const FACTIONS: Faction[] = [
   {
     id: "good",
@@ -207,6 +214,16 @@ export const FACTIONS: Faction[] = [
     ...KINGDOM_SCALE,
     intro: "/sets/kingdom/intro.mp4?v=1",
   },
+  {
+    id: "mechs",
+    name: "Mechs",
+    epithet: "the Green Grid",
+    family: "Forge",
+    dir: "mechs",
+    ext: "webp",
+    file: "w",
+    ...MECH_SCALE,
+  },
 ];
 
 export const PIECE_SETS: PieceSet[] = [
@@ -251,6 +268,13 @@ export const PIECE_SETS: PieceSet[] = [
     tagline: "The Pride against the Underhold",
     w: "kingdom",
     b: "dwarves",
+  },
+  {
+    id: "forge",
+    name: "Forge",
+    tagline: "Mechs against the Far Choir",
+    w: "mechs",
+    b: "aliens",
   },
 ];
 
@@ -353,6 +377,7 @@ export const HERO_LINEUP: { faction: string; type: PieceType }[] = [
   { faction: "dwarves", type: "k" },
   { faction: "evil", type: "k" },
   { faction: "kingdom", type: "k" },
+  { faction: "mechs", type: "k" },
 ];
 
 export function knownFactionId(id: string | null | undefined): string | undefined {
