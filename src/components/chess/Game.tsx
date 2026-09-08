@@ -796,9 +796,9 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
               : ending
               ? endLabel(ending, wFaction.name, bFaction.name)
               : handoff === "ready"
-                ? "End turn to send this move"
+                ? "Tap End turn to send"
                 : handoff === "sending"
-                  ? "Sending the board…"
+                  ? "Sending…"
                   : handoff === "theirs"
                     ? `${sideToMove.name} to move`
                     : (
@@ -822,13 +822,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             disabled={handoff === "sending"}
           >
             <Send className="size-4" />
-            {handoff === "sending"
-              ? ending
-                ? "Sending…"
-                : "Sending…"
-              : ending
-                ? "Send finish"
-                : "End turn"}
+            {handoff === "sending" ? "…" : ending ? "Send finish" : "End turn"}
           </Button>
         ) : (
           <button
@@ -861,13 +855,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 py-1 text-xs text-muted">
           <span className="font-medium tracking-[0.2em] text-fg">{room}</span>
           <span>
-            {handoff === "sending"
-              ? "Sending your move…"
-              : connectedPeer || linked
-                ? "Phones linked"
-                : p2p.joined
-                  ? "Waiting for their phone…"
-                  : "Connecting…"}
+            {connectedPeer || linked
+              ? "Phones linked"
+              : p2p.joined
+                ? "Waiting for their phone…"
+                : "Connecting…"}
           </span>
           <button type="button" className="inline-flex items-center gap-1 text-ivory" onClick={shareRoom}>
             <Share2 className="size-3.5" /> Share
@@ -929,11 +921,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             {handoff === "ready" || handoff === "sending" ? (
               <>
                 <p className="min-w-0 flex-1 text-sm leading-snug text-muted text-pretty">
-                  {handoff === "sending"
-                    ? ending
-                      ? "Sending the finish…"
-                      : "Sending the board…"
-                    : "Ready to send"}
+                  {handoff === "ready" ? "You can still undo" : ""}
                 </p>
                 <Button variant="subtle" size="sm" onClick={undo} disabled={handoff !== "ready"}>
                   <Undo2 className="size-4" /> Undo
