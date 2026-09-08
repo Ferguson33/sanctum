@@ -212,6 +212,14 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const mySide: Side = myColor === "b" ? "b" : "w";
   const myFaction = mySide === "b" ? bFaction : wFaction;
   const theirFaction = mySide === "b" ? wFaction : bFaction;
+  function playerName(side: Side): string {
+    const army = side === "w" ? wFaction.name : bFaction.name;
+    if (mode === "local") return army;
+    if (mode === "ai") return side === "w" ? localProfile?.displayName?.trim() || army : army;
+    if (side === mySide) return localProfile?.displayName?.trim() || army;
+    const peer = connectedPeer?.name?.trim() || inviteSeat?.trim();
+    return peer || army;
+  }
   const skipParade = useCallback(() => {
     unlockAudio();
     setParade(false);
@@ -1111,7 +1119,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             {thinking
               ? `${bFaction.name} thinking`
               : ending
-              ? endLabel(ending, wFaction.name, bFaction.name)
+              ? endLabel(ending, playerName("w"), playerName("b"))
               : handoff === "ready"
                 ? "Tap End turn to send"
                 : handoff === "sending"
@@ -1361,8 +1369,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       {ending && handoff !== "ready" && handoff !== "sending" && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/70 p-4">
           <div className="panel w-full max-w-sm rounded-[28px] p-6 text-center">
-            <p className="font-display text-3xl">{endTitle(ending, wFaction.name, bFaction.name)}</p>
-            <p className="mt-2 text-sm text-muted">{endLabel(ending, wFaction.name, bFaction.name)}</p>
+            <p className="font-display text-3xl">{endTitle(ending, playerName("w"), playerName("b"))}</p>
+            <p className="mt-2 text-sm text-muted">{endLabel(ending, playerName("w"), playerName("b"))}</p>
             <div className="mt-5 flex gap-2">
               <Button className="flex-1" onClick={() => reset()}>
                 {mode === "online" ? "Rematch" : "Play again"}
