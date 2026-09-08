@@ -880,8 +880,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
       <Captured
         row={orientation === "w" ? hellCaps : heavenCaps}
-        faction={orientation === "w" ? bFaction : wFaction}
-        fresh={freshCap && freshCap.side === (orientation === "w" ? "b" : "w") ? freshCap : null}
+        faction={orientation === "w" ? wFaction : bFaction}
+        fresh={freshCap && freshCap.side === (orientation === "w" ? "w" : "b") ? freshCap : null}
       />
 
       <div className="relative z-10 min-h-0 flex-1 overflow-visible px-1">
@@ -911,8 +911,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
 
       <Captured
         row={orientation === "w" ? heavenCaps : hellCaps}
-        faction={orientation === "w" ? wFaction : bFaction}
-        fresh={freshCap && freshCap.side === (orientation === "w" ? "w" : "b") ? freshCap : null}
+        faction={orientation === "w" ? bFaction : wFaction}
+        fresh={freshCap && freshCap.side === (orientation === "w" ? "b" : "w") ? freshCap : null}
       />
 
       <footer className="relative z-10 flex shrink-0 items-center gap-2 bg-gradient-to-t from-bg via-bg/80 to-transparent px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1">
