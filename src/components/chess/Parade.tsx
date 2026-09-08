@@ -77,7 +77,7 @@ export function Parade({ first, second, firstSide, secondSide, board, onDone }: 
       <div className="parade-copy">
         {shot < 2 ? (
           <>
-            <p className="text-xs uppercase tracking-[0.28em] text-gold">{shot === 0 ? "Your host" : "The other throne"}</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-gold">{shot === 0 ? "Your army" : "Their army"}</p>
             <p className="font-display mt-1 text-5xl leading-none sm:text-6xl">{faction.name}</p>
             <p className="mt-1 text-sm text-muted">{faction.epithet}</p>
           </>
