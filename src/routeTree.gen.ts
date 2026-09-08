@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlayRouteImport } from './routes/play'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as StandingsRouteImport } from './routes/standings'
 import { Route as ApiRtcRouteImport } from './routes/api/rtc'
+import { Route as ApiProfileRouteImport } from './routes/api/profile'
 import { Route as RCodeRouteImport } from './routes/r.$code'
 
 const IndexRoute = IndexRouteImport.update({
@@ -30,9 +33,24 @@ const SetupRoute = SetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StandingsRoute = StandingsRouteImport.update({
+  id: '/standings',
+  path: '/standings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRtcRoute = ApiRtcRouteImport.update({
   id: '/api/rtc',
   path: '/api/rtc',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProfileRoute = ApiProfileRouteImport.update({
+  id: '/api/profile',
+  path: '/api/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RCodeRoute = RCodeRouteImport.update({
@@ -45,14 +63,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
   '/setup': typeof SetupRoute
+  '/profile': typeof ProfileRoute
+  '/standings': typeof StandingsRoute
   '/api/rtc': typeof ApiRtcRoute
+  '/api/profile': typeof ApiProfileRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
   '/setup': typeof SetupRoute
+  '/profile': typeof ProfileRoute
+  '/standings': typeof StandingsRoute
   '/api/rtc': typeof ApiRtcRoute
+  '/api/profile': typeof ApiProfileRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRoutesById {
@@ -60,22 +84,28 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
   '/setup': typeof SetupRoute
+  '/profile': typeof ProfileRoute
+  '/standings': typeof StandingsRoute
   '/api/rtc': typeof ApiRtcRoute
+  '/api/profile': typeof ApiProfileRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/play' | '/setup' | '/api/rtc' | '/r/$code'
+  fullPaths: '/' | '/play' | '/setup' | '/profile' | '/standings' | '/api/rtc' | '/api/profile' | '/r/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/play' | '/setup' | '/api/rtc' | '/r/$code'
-  id: '__root__' | '/' | '/play' | '/setup' | '/api/rtc' | '/r/$code'
+  to: '/' | '/play' | '/setup' | '/profile' | '/standings' | '/api/rtc' | '/api/profile' | '/r/$code'
+  id: '__root__' | '/' | '/play' | '/setup' | '/profile' | '/standings' | '/api/rtc' | '/api/profile' | '/r/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PlayRoute: typeof PlayRoute
   SetupRoute: typeof SetupRoute
+  ProfileRoute: typeof ProfileRoute
+  StandingsRoute: typeof StandingsRoute
   ApiRtcRoute: typeof ApiRtcRoute
+  ApiProfileRoute: typeof ApiProfileRoute
   RCodeRoute: typeof RCodeRoute
 }
 
@@ -102,11 +132,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/standings': {
+      id: '/standings'
+      path: '/standings'
+      fullPath: '/standings'
+      preLoaderRoute: typeof StandingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/rtc': {
       id: '/api/rtc'
       path: '/api/rtc'
       fullPath: '/api/rtc'
       preLoaderRoute: typeof ApiRtcRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/profile': {
+      id: '/api/profile'
+      path: '/api/profile'
+      fullPath: '/api/profile'
+      preLoaderRoute: typeof ApiProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/r/$code': {
@@ -123,7 +174,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PlayRoute: PlayRoute,
   SetupRoute: SetupRoute,
+  ProfileRoute: ProfileRoute,
+  StandingsRoute: StandingsRoute,
   ApiRtcRoute: ApiRtcRoute,
+  ApiProfileRoute: ApiProfileRoute,
   RCodeRoute: RCodeRoute,
 }
 export const routeTree = rootRouteImport

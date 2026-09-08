@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Swords, Smartphone, Users } from "lucide-react";
 import { HeroLineup } from "@/components/chess/HeroLineup";
 import { Button } from "@/components/ui/button";
+import { factionSrc, getFaction, type PieceType } from "@/lib/chess/catalog";
 import { hostKey } from "@/lib/chess/net";
 import { AI_LEVELS, warmOpponent, type AiLevelId } from "@/lib/chess/opponent";
+import { useProfile } from "@/lib/profile/client";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -15,6 +17,7 @@ type Panel = null | "ai" | "start" | "join";
 
 function Home() {
   const nav = useNavigate();
+  const { profile, loading: seatLoading } = useProfile();
   const [code, setCode] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
   const [aiClock, setAiClock] = useState(300);
@@ -64,9 +67,41 @@ function Home() {
     <main className="min-h-dvh bg-bg text-fg">
       <section className="relative h-dvh overflow-hidden">
         <div aria-hidden className="arena-wash absolute inset-0" />
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-bg/80 via-bg/25 to-transparent px-5 pb-16 pt-[max(3.2rem,env(safe-area-inset-top))] text-center">
-          <p className="text-xs uppercase tracking-[0.28em] text-gold">Cinematic chess</p>
-          <h1 className="font-display mt-1 text-5xl leading-none sm:text-7xl">Sanctum</h1>
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-bg/80 via-bg/25 to-transparent px-5 pb-16 pt-[max(3.2rem,env(safe-area-inset-top))]">
+          <div className="pointer-events-auto absolute right-4 top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex flex-col items-end gap-1.5 sm:right-5">
+            <Link
+              to="/profile"
+              className="flex max-w-[11rem] items-center gap-2 rounded-full border border-border bg-bg/70 px-2.5 py-1.5 text-left backdrop-blur-sm"
+            >
+              {profile ? (
+                <>
+                  <img
+                    src={factionSrc(
+                      getFaction(profile.crestFaction),
+                      profile.crestPiece as PieceType,
+                    )}
+                    alt=""
+                    className="h-7 w-5 object-contain object-bottom"
+                  />
+                  <span className="truncate text-xs font-medium">{profile.displayName}</span>
+                </>
+              ) : (
+                <span className="px-1 text-xs text-gold">
+                  {seatLoading ? "…" : "Claim seat"}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/standings"
+              className="text-[10px] uppercase tracking-[0.18em] text-muted underline-offset-2 hover:text-gold hover:underline"
+            >
+              Standings
+            </Link>
+          </div>
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-[0.28em] text-gold">Cinematic chess</p>
+            <h1 className="font-display mt-1 text-5xl leading-none sm:text-7xl">Sanctum</h1>
+          </div>
         </header>
         <HeroLineup />
         <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-bg via-bg/80 to-transparent px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8">
