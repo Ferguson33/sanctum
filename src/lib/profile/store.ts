@@ -293,6 +293,26 @@ export async function listMineGames(profileId: string): Promise<GameRow[]> {
   return rows.map((r) => toGameRow(r, profileId));
 }
 
+/** One open table per pair of seats. */
+export async function findOpenPairing(a: string, b: string): Promise<GameRow | null> {
+  if (!a || !b || a === b) return null;
+  const sql = await getSql();
+  const rows = await sql.query<GameDbRow>(
+    `select ${GAME_SELECT}
+       from sanctum.games
+      where status = 'open'
+        and (
+          (white_profile_id = $1 and black_profile_id = $2)
+          or (white_profile_id = $2 and black_profile_id = $1)
+        )
+      order by updated_at desc
+      limit 1`,
+    [a, b],
+  );
+  if (!rows.length) return null;
+  return toGameRow(rows[0], a);
+}
+
 export async function getGameByRoom(
   room: string,
   profileId?: string | null,
@@ -332,7 +352,7 @@ export type UpsertGameInput = {
 export async function upsertGame(
   profileId: string,
   input: UpsertGameInput,
-): Promise<{ ok: true; game: GameRow } | { ok: false; error: string; status?: number }> {
+): Promise<{ ok: true; game: GameRow } | { ok: false; error: string; status?: number; game?: GameRow }> {
   const room = input.room.trim().toUpperCase();
   if (!room || room.length < 4 || room.length > 32) {
     return { ok: false, error: "invalid room", status: 400 };
@@ -364,6 +384,12 @@ export async function upsertGame(
     const id = randomUUID();
     const whiteId = profileId;
     const blackId = peer && peer !== whiteId ? peer : null;
+    if (blackId) {
+      const pair = await findOpenPairing(whiteId, blackId);
+      if (pair) {
+        return { ok: false, error: "already at a table with them", status: 409, game: pair };
+      }
+    }
     await sql.query(
       `insert into sanctum.games (
          id, room, fen, ply, w_faction, b_faction, board,

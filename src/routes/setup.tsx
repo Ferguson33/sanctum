@@ -6,7 +6,7 @@ import { BOARD_THEMES, getFaction } from "@/lib/chess/catalog";
 import { hostKey, makeRoomCode } from "@/lib/chess/net";
 import { getAiLevel, warmOpponent, type AiLevelId } from "@/lib/chess/opponent";
 import { usePrefs } from "@/lib/chess/prefs";
-import { upsertGameClient, useProfile } from "@/lib/profile/client";
+import { fetchMyGames, upsertGameClient, useProfile } from "@/lib/profile/client";
 import { cn } from "@/lib/utils";
 
 type Mode = "local" | "ai" | "duel";
@@ -83,8 +83,34 @@ function SetupPage() {
         : "Send link"
       : "Begin match";
 
-  function begin() {
+  async function begin() {
     if (mode === "duel") {
+      if (vsId && profile?.id) {
+        try {
+          const { games } = await fetchMyGames();
+          const hit = games.find(
+            (g) => g.whiteProfileId === vsId || g.blackProfileId === vsId,
+          );
+          if (hit) {
+            const room = hit.room.toUpperCase();
+            if (hit.mySide === "w" || hit.whiteProfileId === profile.id) {
+              localStorage.setItem(hostKey(room), "1");
+            } else {
+              localStorage.removeItem(hostKey(room));
+            }
+            const search: Record<string, string> = { w: hit.wFaction, board: hit.board };
+            if (hit.bFaction) search.b = hit.bFaction;
+            else search.open = "1";
+            if (hit.clockLimitSec && hit.clockLimitSec > 0) search.clock = String(hit.clockLimitSec);
+            if (hit.challenge === "live" || hit.challenge === "later") search.kind = hit.challenge;
+            if (seatName) search.seat = seatName;
+            void nav({ to: "/r/$code", params: { code: room }, search });
+            return;
+          }
+        } catch {
+          /* fall through to a new table */
+        }
+      }
       const room = makeRoomCode();
       localStorage.setItem(hostKey(room), "1");
       if (vsId && profile?.id) {

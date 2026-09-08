@@ -17,25 +17,43 @@ function isIncoming(g: GameRow, selfId: string): boolean {
   return g.challenge === "later" || !g.challenge;
 }
 
+function isYourMove(g: GameRow, selfId: string): boolean {
+  if (g.status !== "open") return false;
+  if (!g.bFaction && g.ply <= 0) return false;
+  const turn = g.fen.split(" ")[1] === "b" ? "b" : "w";
+  const mine = g.mySide ?? (g.whiteProfileId === selfId ? "w" : "b");
+  return turn === mine;
+}
+
 export function joinChallengeSearch(g: GameRow): Record<string, string> {
-  const search: Record<string, string> = { w: g.wFaction, board: g.board, open: "1" };
+  const search: Record<string, string> = { w: g.wFaction, board: g.board };
+  if (g.bFaction) search.b = g.bFaction;
+  else search.open = "1";
   if (g.clockLimitSec && g.clockLimitSec > 0) search.clock = String(g.clockLimitSec);
   if (g.challenge === "live" || g.challenge === "later") search.kind = g.challenge;
   return search;
 }
 
-export function openChallenge(
+export function openSavedGame(
   g: GameRow,
   nav: ReturnType<typeof useNavigate>,
+  selfId?: string,
 ) {
   const room = g.room.toUpperCase();
-  localStorage.removeItem(hostKey(room));
+  if (g.mySide === "w" || g.whiteProfileId === selfId) {
+    localStorage.setItem(hostKey(room), "1");
+  } else {
+    localStorage.removeItem(hostKey(room));
+  }
   void nav({ to: "/r/$code", params: { code: room }, search: joinChallengeSearch(g) });
+}
+
+export function openChallenge(g: GameRow, nav: ReturnType<typeof useNavigate>) {
+  openSavedGame(g, nav);
 }
 
 export function useIncomingGames() {
   const { profile } = useProfile();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [games, setGames] = useState<GameRow[]>([]);
 
   useEffect(() => {
@@ -45,11 +63,10 @@ export function useIncomingGames() {
     }
     let alive = true;
     const tick = async () => {
-      if (pathname.toUpperCase().includes("/R/")) return;
       try {
         const { games: rows } = await fetchMyGames();
         if (!alive) return;
-        setGames(rows.filter((g) => isIncoming(g, profile.id)));
+        setGames(rows);
       } catch {
         if (alive) setGames([]);
       }
@@ -60,45 +77,56 @@ export function useIncomingGames() {
       alive = false;
       window.clearInterval(id);
     };
-  }, [profile?.id, pathname]);
+  }, [profile?.id]);
 
-  const live = games.find((g) => g.challenge === "live") ?? null;
-  const later = games.filter((g) => g.challenge !== "live");
-  return { profile, live, later, incoming: live ?? later[0] ?? null };
+  const incoming =
+    games.find((g) => profile && isIncoming(g, profile.id)) ?? null;
+  const yourMove =
+    games.find((g) => profile && isYourMove(g, profile.id)) ?? null;
+  const later = games.filter((g) => g.challenge !== "live" && profile && isIncoming(g, profile.id));
+  return { profile, live: incoming?.challenge === "live" ? incoming : null, later, incoming, yourMove };
 }
 
-function who(g: GameRow): string {
+function who(g: GameRow, selfId?: string): string {
+  if (g.mySide === "w" || g.whiteProfileId === selfId) {
+    return g.blackName?.trim() || (g.bFaction ? getFaction(g.bFaction).name : getFaction(g.wFaction).name);
+  }
   return g.whiteName?.trim() || getFaction(g.wFaction).name;
 }
 
 export function IncomingChallenge() {
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { incoming, live } = useIncomingGames();
+  const { profile, incoming, live, yourMove } = useIncomingGames();
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState<string | null>(null);
 
-  if (!incoming) return null;
-  const inThisRoom = pathname.toUpperCase().includes(`/R/${incoming.room.toUpperCase()}`);
+  const notice = incoming ?? yourMove;
+  if (!notice || !profile) return null;
+  const inThisRoom = pathname.toUpperCase().includes(`/R/${notice.room.toUpperCase()}`);
   if (inThisRoom) return null;
-  if (hidden === incoming.id) return null;
+  if (hidden === notice.id) return null;
+  if (pathname === "/games" && !incoming) return null;
 
-  const mins = incoming.clockLimitSec && incoming.clockLimitSec > 0 ? Math.round(incoming.clockLimitSec / 60) : 0;
-  const isLive = incoming.challenge === "live" || live?.id === incoming.id;
+  const mins = notice.clockLimitSec && notice.clockLimitSec > 0 ? Math.round(notice.clockLimitSec / 60) : 0;
+  const isLive = Boolean(incoming && (incoming.challenge === "live" || live?.id === incoming.id));
+  const isMove = !incoming && Boolean(yourMove);
+  const room = notice.room;
+  const noticeId = notice.id;
 
   async function decline() {
     if (!isLive) {
-      setHidden(incoming.id);
+      setHidden(noticeId);
       return;
     }
     setBusy(true);
     try {
-      await finishGameClient(incoming.room);
+      await finishGameClient(room);
     } catch {
       /* */
     }
     setBusy(false);
-    setHidden(incoming.id);
+    setHidden(noticeId);
   }
 
   return (
@@ -106,11 +134,11 @@ export function IncomingChallenge() {
       <div className="pointer-events-auto panel flex w-full max-w-md items-center gap-2 rounded-[18px] px-3 py-2.5 shadow-lg">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-[0.18em] text-gold">
-            {isLive ? "Game request" : "Waiting"}
+            {isLive ? "Game request" : isMove ? "Your move" : "Waiting"}
           </p>
           <p className="truncate text-sm font-medium">
-            {who(incoming)}
-            {isLive ? (mins ? ` · ${mins} min` : " · live") : " · join when ready"}
+            {who(notice, profile.id)}
+            {isLive ? (mins ? ` · ${mins} min` : " · live") : isMove ? " · sit at My games" : " · join when ready"}
           </p>
         </div>
         {isLive ? (
@@ -118,8 +146,12 @@ export function IncomingChallenge() {
             Not now
           </Button>
         ) : null}
-        <Button size="sm" onClick={() => openChallenge(incoming, nav)} disabled={busy}>
-          Join
+        <Button
+          size="sm"
+          onClick={() => (isMove ? void nav({ to: "/games" }) : openSavedGame(notice, nav, profile.id))}
+          disabled={busy}
+        >
+          {isMove ? "My games" : "Join"}
         </Button>
       </div>
     </div>

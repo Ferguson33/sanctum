@@ -120,7 +120,9 @@ async function handlePost(request: Request): Promise<Response> {
       peerProfileId: msg.peerProfileId,
       challenge: msg.challenge,
     });
-    if (!result.ok) return json({ error: result.error }, result.status ?? 400);
+    if (!result.ok) {
+      return json({ error: result.error, game: result.game ?? null }, result.status ?? 400);
+    }
     return json(result);
   }
 
