@@ -1347,7 +1347,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
               {seatKind === "live"
                 ? liveMissed
                   ? `${inviteSeat || "They"} didn’t take their seat. This live call ended.`
-                  : `${inviteSeat || "They"} has five minutes to join in Sanctum. Clock starts when both of you are sitting.`
+                  : `${inviteSeat ? `${inviteSeat} has` : "They have"} five minutes to join in Sanctum. Clock starts when both of you are sitting.`
                 : inviteSeat
                   ? `${inviteSeat} will see this under My games. They open Sanctum from the icon — no link, no clock.`
                   : "Share the link (or read them the code). They tap Enter a code, pick an army, then Play — only then the match starts."}
