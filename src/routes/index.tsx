@@ -19,6 +19,7 @@ function Home() {
   const prefs = usePrefs();
   const [code, setCode] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiClock, setAiClock] = useState(300);
   const [challengeOpen, setChallengeOpen] = useState(false);
   const CLOCK_OPTS: { sec: number; label: string; blurb: string }[] = [
     { sec: 0, label: "No clock", blurb: "Open table" },
@@ -29,7 +30,14 @@ function Home() {
 
   function playAi(lvl: AiLevelId) {
     warmOpponent();
-    void nav({ to: "/play", search: { vs: "ai", lvl } });
+    void nav({
+      to: "/play",
+      search: {
+        vs: "ai",
+        lvl,
+        ...(aiClock > 0 ? { clock: String(aiClock) } : {}),
+      },
+    });
   }
 
   function challenge(clockSec: number) {
@@ -80,18 +88,37 @@ function Home() {
               <Swords className="size-4" /> Play the table
             </Button>
             {aiOpen && (
-              <div className="grid grid-cols-2 gap-2">
-                {AI_LEVELS.map((l) => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() => playAi(l.id)}
-                    className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
-                  >
-                    <span className="font-display block text-lg leading-none">{l.name}</span>
-                    <span className="mt-1 block text-xs text-muted">{l.blurb}</span>
-                  </button>
-                ))}
+              <div className="flex flex-col gap-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Clock</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {CLOCK_OPTS.map((c) => (
+                    <button
+                      key={`ai-${c.sec}`}
+                      type="button"
+                      onClick={() => setAiClock(c.sec)}
+                      className={cn(
+                        "rounded-[14px] border px-2 py-2 text-center",
+                        aiClock === c.sec ? "border-ivory bg-bg/70" : "border-border bg-bg/50",
+                      )}
+                    >
+                      <span className="block text-xs font-medium leading-none">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted">Host strength</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {AI_LEVELS.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => playAi(l.id)}
+                      className="rounded-[16px] border border-border bg-bg/50 px-3 py-2 text-left"
+                    >
+                      <span className="font-display block text-lg leading-none">{l.name}</span>
+                      <span className="mt-1 block text-xs text-muted">{l.blurb}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             <Button
