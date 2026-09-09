@@ -145,6 +145,8 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...GROVE_SCALE,
     intro: "/sets/grove/intro-elves.mp4?v=3",
+    defeat: "/sets/grove/defeat-elves.mp4?v=1",
+    defeatLine: "The nightgrove is bound.",
   },
   {
     id: "dwarves",
