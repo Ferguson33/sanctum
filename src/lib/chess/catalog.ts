@@ -158,6 +158,8 @@ export const FACTIONS: Faction[] = [
     file: "b",
     ...GROVE_SCALE,
     intro: "/sets/grove/intro-dwarves.mp4?v=3",
+    defeat: "/sets/grove/defeat-dwarves.mp4?v=1",
+    defeatLine: "The mountain hall is bound.",
   },
   {
     id: "canon-ivory",
