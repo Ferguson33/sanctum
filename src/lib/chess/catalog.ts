@@ -217,6 +217,8 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...PAGEANT_SCALE,
     intro: "/sets/drift/intro.mp4",
+    defeat: "/sets/drift/defeat.mp4?v=1",
+    defeatLine: "The drift is bound.",
   },
   {
     id: "kingdom",
