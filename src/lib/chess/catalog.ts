@@ -204,6 +204,8 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...BAKUFU_SCALE,
     intro: "/sets/bakufu/intro.mp4",
+    defeat: "/sets/bakufu/defeat.mp4?v=1",
+    defeatLine: "The bakufu kneels.",
   },
   {
     id: "aliens",
