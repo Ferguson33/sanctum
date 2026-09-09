@@ -243,6 +243,8 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...MECH_SCALE,
     intro: "/sets/mechs/intro.mp4?v=1",
+    defeat: "/sets/mechs/defeat.mp4?v=1",
+    defeatLine: "The circuit goes dark.",
   },
 ];
 
