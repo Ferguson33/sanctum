@@ -98,10 +98,10 @@ const KINGDOM_SCALE = {
   fit: "statue" as const,
 };
 
-/** Mechs — helicopter bishop is wide; infantry pawns stay small. */
+/** Mechs — helicopter queen is wide; infantry pawns stay small. */
 const MECH_SCALE = {
   scale: { width: 0.96, height: 1.16 },
-  typeScale: { r: 1.08, n: 1.04, q: 1.12, k: 1.16, b: 1.1, p: 0.7 } as Partial<Record<PieceType, number>>,
+  typeScale: { r: 1.08, n: 1.04, q: 1.16, k: 1.16, b: 1.08, p: 0.7 } as Partial<Record<PieceType, number>>,
   fit: "statue" as const,
 };
 
@@ -416,7 +416,7 @@ export function tableName(w: Faction, b: Faction): string {
 }
 
 export function factionSrc(faction: Faction, type: PieceType): string {
-  const bust = faction.ext === "svg" ? "?v=3" : "?v=8";
+  const bust = faction.ext === "svg" ? "?v=3" : "?v=9";
   return `/sets/${faction.dir}/${faction.file}-${type}.${faction.ext}${bust}`;
 }
 
