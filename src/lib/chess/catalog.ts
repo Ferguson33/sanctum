@@ -191,6 +191,8 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...PAGEANT_SCALE,
     intro: "/sets/atlantis/intro.mp4",
+    defeat: "/sets/atlantis/defeat.mp4?v=1",
+    defeatLine: "The deep throne is broken.",
   },
   {
     id: "samurai",
