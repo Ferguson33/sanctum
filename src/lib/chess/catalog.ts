@@ -132,6 +132,8 @@ export const FACTIONS: Faction[] = [
     file: "b",
     ...SANCTUM_SCALE,
     intro: "/sets/sanctum/intro-ruin.mp4?v=3",
+    defeat: "/sets/sanctum/defeat-ruin.mp4?v=1",
+    defeatLine: "The ember court goes dark.",
   },
   {
     id: "elves",
