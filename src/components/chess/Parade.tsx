@@ -23,6 +23,33 @@ interface ParadeProps {
   onDone: () => void;
 }
 
+/** Full-screen checkmate reel for a fallen host. */
+export function DefeatReel({ faction, onDone }: { faction: Faction; onDone: () => void }) {
+  const src = faction.defeat;
+  useEffect(() => {
+    if (!src) onDone();
+  }, [src, onDone]);
+  if (!src) return null;
+  return (
+    <div className="parade-root">
+      <HostReel
+        src={src}
+        poster={src.replace(/\.mp4(\?.*)?$/, ".jpg$1")}
+        onEnded={onDone}
+        onBroken={onDone}
+      />
+      <div className="parade-copy">
+        <p className="text-xs uppercase tracking-[0.28em] text-ember">Checkmate</p>
+        <p className="font-display mt-1 text-5xl leading-none sm:text-6xl">{faction.name}</p>
+        <p className="mt-1 text-sm text-muted">The pride is bound.</p>
+      </div>
+      <button type="button" className="parade-skip" onClick={onDone}>
+        Continue
+      </button>
+    </div>
+  );
+}
+
 export function Parade({ first, second, firstSide, secondSide, board, onDone }: ParadeProps) {
   const [shot, setShot] = useState<0 | 1 | 2>(0);
   const [reelBroken, setReelBroken] = useState(false);

@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Board } from "@/components/chess/Board";
 import { ArmyPick } from "@/components/chess/ArmyPick";
-import { Parade } from "@/components/chess/Parade";
+import { Parade, DefeatReel } from "@/components/chess/Parade";
 import {
   type Faction,
   factionSrc,
@@ -150,6 +150,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [rankedCounted, setRankedCounted] = useState<boolean | null>(null);
   const nav = useNavigate();
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
+  const [sawFall, setSawFall] = useState(false);
   const didParade = useRef(mode === "local" || mode === "ai");
   const [thinking, setThinking] = useState(false);
   const didSync = useRef(false);
@@ -1016,6 +1017,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setCaps([]);
     setPending(null);
     setEnding(null);
+    setSawFall(false);
     setPhase("idle");
     setTurn(chess.turn());
     setHandoff("idle");
@@ -1394,7 +1396,12 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </button>
       )}
 
-      {ending && handoff !== "ready" && handoff !== "sending" && (
+      {ending && handoff !== "ready" && handoff !== "sending" && ending.kind === "checkmate" && !sawFall && (ending.winner === "w" ? bFaction : wFaction).defeat ? (
+        <DefeatReel
+          faction={ending.winner === "w" ? bFaction : wFaction}
+          onDone={() => setSawFall(true)}
+        />
+      ) : ending && handoff !== "ready" && handoff !== "sending" ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/70 p-4">
           <div className="panel w-full max-w-sm rounded-[28px] p-6 text-center">
             <p className="font-display text-3xl">{endTitle(ending, playerName("w"), playerName("b"))}</p>
@@ -1414,7 +1421,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {settings && <SettingsSheet onClose={() => setSettings(false)} mode={mode} />}
 

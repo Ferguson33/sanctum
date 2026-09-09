@@ -36,6 +36,8 @@ export interface Faction {
   fit: "glyph" | "statue";
   /** Optional cinematic intro (mp4). Poster is the same path with .jpg */
   intro?: string;
+  /** Optional checkmate reel when this host is mated. Poster: same path .jpg */
+  defeat?: string;
 }
 
 export interface PieceSet {
@@ -213,6 +215,7 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...KINGDOM_SCALE,
     intro: "/sets/kingdom/intro.mp4?v=1",
+    defeat: "/sets/kingdom/defeat.mp4?v=1",
   },
   {
     id: "mechs",
