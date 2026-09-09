@@ -38,6 +38,7 @@ export interface Faction {
   intro?: string;
   /** Optional checkmate reel when this host is mated. Poster: same path .jpg */
   defeat?: string;
+  defeatLine?: string;
 }
 
 export interface PieceSet {
@@ -118,6 +119,8 @@ export const FACTIONS: Faction[] = [
     file: "w",
     ...SANCTUM_SCALE,
     intro: "/sets/sanctum/intro-solace.mp4?v=3",
+    defeat: "/sets/sanctum/defeat-solace.mp4?v=1",
+    defeatLine: "The ivory host is broken.",
   },
   {
     id: "evil",
@@ -216,6 +219,7 @@ export const FACTIONS: Faction[] = [
     ...KINGDOM_SCALE,
     intro: "/sets/kingdom/intro.mp4?v=1",
     defeat: "/sets/kingdom/defeat.mp4?v=1",
+    defeatLine: "The pride is bound.",
   },
   {
     id: "mechs",

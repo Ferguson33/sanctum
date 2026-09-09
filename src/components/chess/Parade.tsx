@@ -41,7 +41,7 @@ export function DefeatReel({ faction, onDone }: { faction: Faction; onDone: () =
       <div className="parade-copy">
         <p className="text-xs uppercase tracking-[0.28em] text-ember">Checkmate</p>
         <p className="font-display mt-1 text-5xl leading-none sm:text-6xl">{faction.name}</p>
-        <p className="mt-1 text-sm text-muted">The pride is bound.</p>
+        <p className="mt-1 text-sm text-muted">{faction.defeatLine ?? "Fallen."}</p>
       </div>
       <button type="button" className="parade-skip" onClick={onDone}>
         Continue
