@@ -60,6 +60,7 @@ const PROMOTE: PieceType[] = ["q", "r", "b", "n"];
 
 type Phase = "idle" | "selected" | "promotion" | "animating" | "over";
 type Handoff = "idle" | "ready" | "sending" | "theirs";
+type Finale = "reveal" | "reel" | "card";
 type Callout = {
   kind: "turn" | "check" | "moved" | "sat" | "taken";
   title: string;
@@ -151,7 +152,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const [rankedCounted, setRankedCounted] = useState<boolean | null>(null);
   const nav = useNavigate();
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
-  const [sawFall, setSawFall] = useState(false);
+  const [finale, setFinale] = useState<Finale>("reveal");
   const didParade = useRef(mode === "local" || mode === "ai");
   const [thinking, setThinking] = useState(false);
   const didSync = useRef(false);
@@ -1082,7 +1083,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setCaps([]);
     setPending(null);
     setEnding(null);
-    setSawFall(false);
+    setFinale("reveal");
     setPhase("idle");
     setTurn(chess.turn());
     setHandoff("idle");
@@ -1186,6 +1187,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   // Prefer FEN side-to-move so chrome never lags a ply behind the engine.
   const liveTurn = (fen.split(" ")[1] === "b" ? "b" : "w") as Side;
   const sideToMove = liveTurn === "w" ? wFaction : bFaction;
+  const settledEnd = Boolean(ending) && handoff !== "ready" && handoff !== "sending";
+  const loserFaction =
+    ending?.kind === "checkmate" ? (ending.winner === "w" ? bFaction : wFaction) : null;
+  const mateWinner =
+    ending?.kind === "checkmate" ? playerName(ending.winner) : "";
 
   return (
     <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-bg text-fg">
@@ -1461,12 +1467,22 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         </button>
       )}
 
-      {ending && handoff !== "ready" && handoff !== "sending" && ending.kind === "checkmate" && !sawFall && (ending.winner === "w" ? bFaction : wFaction).defeat ? (
-        <DefeatReel
-          faction={ending.winner === "w" ? bFaction : wFaction}
-          onDone={() => setSawFall(true)}
-        />
-      ) : ending && handoff !== "ready" && handoff !== "sending" ? (
+      {settledEnd && ending?.kind === "checkmate" && finale === "reveal" ? (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-end bg-bg/30 p-4 pb-[max(1.4rem,env(safe-area-inset-bottom))]">
+          <div className="panel w-full max-w-sm rounded-[28px] p-5 text-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-gold">Checkmate</p>
+            <p className="font-display mt-1 text-3xl">{mateWinner} wins</p>
+            <Button
+              className="mt-4 w-full"
+              onClick={() => setFinale(loserFaction?.defeat ? "reel" : "card")}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      ) : settledEnd && ending?.kind === "checkmate" && finale === "reel" && loserFaction?.defeat ? (
+        <DefeatReel faction={loserFaction} onDone={() => setFinale("card")} />
+      ) : settledEnd && ending && (ending.kind !== "checkmate" || finale === "card") ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/70 p-4">
           <div className="panel w-full max-w-sm rounded-[28px] p-6 text-center">
             <p className="font-display text-3xl">{endTitle(ending, playerName("w"), playerName("b"))}</p>
