@@ -219,6 +219,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/bakufu/intro.mp4",
     defeat: "/sets/bakufu/defeat.mp4?v=1",
     defeatLine: "The bakufu kneels.",
+    queenFall: "/sets/bakufu/queen-fall.mp4?v=1",
+    queenFallLine: "The court is seated.",
   },
   {
     id: "aliens",
