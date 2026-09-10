@@ -278,13 +278,22 @@ async function handlePost(request: Request): Promise<Response> {
   } catch (err) {
     console.warn("[rtc] live snapshot missed", err);
   }
-  try {
-    await publishRemote(msg.room, from, payload);
-    stored = true;
-  } catch (err) {
-    console.warn("[rtc] remote publish missed", err);
+  // Turn traffic (state / have / move) is primary on Postgres /api/room.
+  // Keep ntfy for hellos/table/theme only so 429s cannot block End turn.
+  const kind =
+    payload && typeof payload === "object" && typeof (payload as { t?: unknown }).t === "string"
+      ? (payload as { t: string }).t
+      : "";
+  const skipNtfy = kind === "state" || kind === "have" || kind === "move";
+  if (!skipNtfy) {
+    try {
+      await publishRemote(msg.room, from, payload);
+      stored = true;
+    } catch (err) {
+      console.warn("[rtc] remote publish missed", err);
+    }
   }
-  if (!stored) return json({ error: "mailbox publish failed", ok: false }, 502);
+  if (!stored && !skipNtfy) return json({ error: "mailbox publish failed", ok: false }, 502);
   return json({ ok: true });
 }
 

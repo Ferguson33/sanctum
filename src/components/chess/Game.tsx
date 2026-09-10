@@ -48,6 +48,7 @@ import { usePrefs } from "@/lib/chess/prefs";
 import { playMoveSound, unlockAudio, armAudioUnlock } from "@/lib/chess/sound";
 import { playHaptic } from "@/lib/chess/haptic";
 import { plyOfFen, publishMailbox } from "@/lib/multiplayer/mailbox";
+import { ackRoomState, pullRoomState, pushRoomState } from "@/lib/multiplayer/room-client";
 import { getAiLevel, think, type AiLevelId } from "@/lib/chess/opponent";
 import { useRoomBus } from "@/lib/multiplayer/use-room-bus";
 import { fetchGameByRoom, fetchH2H, finishGameClient, recordMatchClient, upsertGameClient, useProfile } from "@/lib/profile/client";
@@ -603,37 +604,103 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     return () => window.clearTimeout(id);
   }, [handoff]);
 
+  // Primary End-turn transport: Postgres /api/room (ntfy no longer blocks turns).
   useEffect(() => {
-    if (mode !== "online" || handoff !== "sending") return;
-    const push = () => {
-      const chess = chessRef.current;
-      const last = lastMoveRef.current;
-      const msg: NetMsg = {
-        t: "state",
-        fen: chess.fen(),
-        ply: plyOfFen(chess.fen()),
-        from: last?.from,
-        to: last?.to,
-        wFaction: table.w,
-        bFaction: table.b,
-        boardId: table.board,
-        ...(clockLimit ? { clocks: clocksRef.current } : {}),
-        ...(localProfile?.id
-          ? { profileId: localProfile.id, profileName: localProfile.displayName }
-          : {}),
-      };
-      p2p.send(msg);
+    if (mode !== "online" || handoff !== "sending" || !room) return;
+    let cancelled = false;
+    const chess = chessRef.current;
+    const ply = plyOfFen(chess.fen());
+    const last = lastMoveRef.current;
+
+    const doPush = async () => {
+      try {
+        await pushRoomState({
+          room,
+          fen: chess.fen(),
+          ply,
+          from: last?.from,
+          to: last?.to,
+          wFaction: table.w,
+          bFaction: table.b,
+          board: table.board,
+          ...(clockLimit ? { clocks: clocksRef.current } : {}),
+        });
+      } catch {
+        /* next tick retries */
+      }
     };
-    push();
-    const t1 = window.setTimeout(push, 1200);
-    const t2 = window.setTimeout(push, 2800);
-    const id = window.setInterval(push, 3500);
+
+    const pollAck = async () => {
+      if (cancelled) return;
+      try {
+        const row = await pullRoomState(room);
+        if (!row || cancelled) return;
+        // Peer acked our ply, or the board already advanced past us.
+        if (row.ackPly >= ply || row.ply > ply) {
+          setHandoff("theirs");
+        }
+      } catch {
+        /* retry */
+      }
+    };
+
+    void doPush().then(() => void pollAck());
+    const pollId = window.setInterval(() => void pollAck(), 700);
+    const pushId = window.setInterval(() => void doPush(), 3200);
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      cancelled = true;
+      window.clearInterval(pollId);
+      window.clearInterval(pushId);
+    };
+  }, [handoff, mode, room]); // eslint-disable-line
+
+  // While waiting / idle online: pull DB state and apply if remote ply is ahead.
+  useEffect(() => {
+    if (mode !== "online" || !room || !seated) return;
+    if (handoff === "sending" || handoff === "ready") return;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const row = await pullRoomState(room);
+        if (!row || cancelled) return;
+        const localPly = plyOfFen(chessRef.current.fen());
+        if (row.ply > localPly) {
+          handleNet({
+            t: "state",
+            fen: row.fen,
+            ply: row.ply,
+            from: row.from ?? undefined,
+            to: row.to ?? undefined,
+            wFaction: row.wFaction ?? undefined,
+            bFaction: row.bFaction ?? undefined,
+            boardId: row.board ?? undefined,
+            clocks: row.clocks ?? undefined,
+          });
+          return;
+        }
+        // Same ply on both phones — ensure we ack so sender can clear Sending.
+        if (row.ply === localPly && row.ply > 0 && row.ackPly < row.ply) {
+          try {
+            await ackRoomState(room, row.ply);
+            lastHavePly.current = row.ply;
+          } catch {
+            /* */
+          }
+        }
+      } catch {
+        /* next tick */
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(() => void tick(), 700);
+    return () => {
+      cancelled = true;
       window.clearInterval(id);
     };
-  }, [handoff, mode]); // eslint-disable-line
+  }, [mode, room, seated, handoff]); // eslint-disable-line
 
   const canMove = useCallback(
     (color: Side) => {
@@ -773,13 +840,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   function ackHave(ply: number, force = false) {
     if (!force && lastHavePly.current === ply) return;
     lastHavePly.current = ply;
-    p2p.send({ t: "have", ply } satisfies NetMsg);
+    if (!room) return;
+    void ackRoomState(room, ply).catch(() => {});
+    // One sparse retry — DB is primary; no ntfy have spam.
     window.setTimeout(() => {
-      try {
-        p2p.send({ t: "have", ply } satisfies NetMsg);
-      } catch {
-        /* */
-      }
+      void ackRoomState(room, ply).catch(() => {});
     }, 700);
   }
 
