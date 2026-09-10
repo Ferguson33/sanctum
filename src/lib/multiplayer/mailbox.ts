@@ -73,7 +73,14 @@ export async function readMailbox(
   table?: TableWire;
 }> {
   const params = new URLSearchParams({ room, peer, name, since: "0" });
-  const res = await fetch(`/api/rtc?${params}`);
+  const ac = new AbortController();
+  const kill = setTimeout(() => ac.abort(), 8000);
+  let res: Response;
+  try {
+    res = await fetch(`/api/rtc?${params}`, { signal: ac.signal });
+  } finally {
+    clearTimeout(kill);
+  }
   if (!res.ok) throw new Error(`mailbox poll ${res.status}`);
   const body = (await res.json()) as {
     messages?: { id: string; from: string; payload: unknown }[];
@@ -93,11 +100,19 @@ export async function readMailbox(
 }
 
 export async function publishMailbox(room: string, from: string, payload: unknown): Promise<void> {
-  const res = await fetch("/api/rtc", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ op: "pub", room, from, payload }),
-  });
+  const ac = new AbortController();
+  const kill = setTimeout(() => ac.abort(), 8000);
+  let res: Response;
+  try {
+    res = await fetch("/api/rtc", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ op: "pub", room, from, payload }),
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(kill);
+  }
   if (!res.ok) throw new Error(`mailbox publish ${res.status}`);
 }
 

@@ -39,6 +39,7 @@ export function useRoomBus(options: Options): P2PRoomHandle {
   const seenKeys = useRef(new Set<string>());
   const knownPeers = useRef(new Map<string, PeerInfo>());
   const closed = useRef(false);
+  const sendBusy = useRef(0);
   const linkedRef = useRef(false);
   const listeners = useRef(
     new Set<(from: string, data: unknown, channel: "state" | "reliable") => void>(),
@@ -123,6 +124,8 @@ export function useRoomBus(options: Options): P2PRoomHandle {
 
     const hello = async () => {
       if (closed.current) return;
+      // Don't compete with End-turn / have acks for ntfy rate limit.
+      if (sendBusy.current > 0) return;
       const payload: Record<string, unknown> = { t: "hello", id: selfId, name };
       if (profileIdRef.current) {
         payload.profileId = profileIdRef.current;
@@ -158,7 +161,12 @@ export function useRoomBus(options: Options): P2PRoomHandle {
     (data: unknown) => {
       const key = payloadKey(data);
       if (key) seenKeys.current.add(key);
-      const job = sendChain.current.then(() => sendWithRetry(room, selfId, data));
+      sendBusy.current += 1;
+      const job = sendChain.current
+        .then(() => sendWithRetry(room, selfId, data))
+        .finally(() => {
+          sendBusy.current = Math.max(0, sendBusy.current - 1);
+        });
       sendChain.current = job.catch(() => {});
       return job;
     },
