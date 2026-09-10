@@ -139,6 +139,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/sanctum/intro-ruin.mp4?v=3",
     defeat: "/sets/sanctum/defeat-ruin.mp4?v=1",
     defeatLine: "The ember court goes dark.",
+    queenFall: "/sets/sanctum/queen-ruin.mp4?v=1",
+    queenFallLine: "The ember queen burns out.",
   },
   {
     id: "elves",
