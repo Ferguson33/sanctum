@@ -262,6 +262,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/mechs/intro.mp4?v=1",
     defeat: "/sets/mechs/defeat.mp4?v=1",
     defeatLine: "The circuit goes dark.",
+    queenFall: "/sets/mechs/queen-fall.mp4?v=1",
+    queenFallLine: "The rotor burns out.",
   },
 ];
 
