@@ -153,6 +153,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const nav = useNavigate();
   const [parade, setParade] = useState(mode === "local" || mode === "ai");
   const [finale, setFinale] = useState<Finale>("reveal");
+  const [queenFall, setQueenFall] = useState<Faction | null>(null);
   const didParade = useRef(mode === "local" || mode === "ai");
   const [thinking, setThinking] = useState(false);
   const didSync = useRef(false);
@@ -167,6 +168,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   const finishedGameRef = useRef(false);
   const didHydrateRef = useRef(false);
   const persistBusyRef = useRef(false);
+  const pendingAi = useRef(false);
   const { profile: localProfile } = useProfile();
   handoffRef.current = handoff;
   lastMoveRef.current = lastMove;
@@ -272,7 +274,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
   // Clocks: online only after handoff idle (turn pushed); AI on the side to move.
   // Debit chessRef.turn() each tick so React turn lag cannot leave White running forever.
   useEffect(() => {
-    if (!clockLimit || parade || ending || phase === "over" || phase === "animating") return;
+    if (!clockLimit || parade || queenFall || ending || phase === "over" || phase === "animating") return;
     if (mode === "online") {
       if (handoff !== "idle") return;
       if (!seated) return;
@@ -302,7 +304,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       });
     }, 250);
     return () => window.clearInterval(id);
-  }, [clockLimit, parade, ending, phase, handoff, seated, linked, mySide, p2p, mode, turn]);
+  }, [clockLimit, parade, queenFall, ending, phase, handoff, seated, linked, mySide, p2p, mode, turn]);
 
   useEffect(() => {
     if (mode === "local") return;
@@ -708,10 +710,11 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       if (phase === "over" || phase === "animating" || phase === "promotion" || thinking) return false;
       if (mode === "online" && !seated) return false;
       if (handoff === "ready" || handoff === "sending") return false;
+      if (queenFall) return false;
       if (myColor === "both") return true;
       return myColor === color && turn === color;
     },
-    [phase, myColor, turn, handoff, mode, seated, thinking],
+    [phase, myColor, turn, handoff, mode, seated, thinking, queenFall],
   );
 
   function flash(next: NonNullable<Callout>, ms = 2800) {
@@ -806,7 +809,14 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         if (prefs.sound) playMoveSound("end");
         playHaptic("end", prefs.haptic);
       }
-      if (move.captured && !chess.isGameOver()) {
+      const fallenQueen =
+        move.captured === "q" && !chess.isGameOver()
+          ? loser === "w"
+            ? wFaction
+            : bFaction
+          : null;
+      if (fallenQueen?.queenFall) setQueenFall(fallenQueen);
+      if (move.captured && !chess.isGameOver() && !fallenQueen?.queenFall) {
         const label = PIECE_LABEL[move.captured];
         const lostMine = mode === "local" || loser === mySide;
         if (lostMine) {
@@ -833,7 +843,8 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         }
       }
       if (!remote && mode === "ai" && !chess.isGameOver() && chess.turn() === "b") {
-        void playAi();
+        if (fallenQueen?.queenFall) pendingAi.current = true;
+        else void playAi();
       }
     }, 240);
   }
@@ -944,6 +955,17 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
         if (handoffRef.current === "sending") setHandoff("theirs");
         return;
       }
+      let fallenQueen: Faction | null = null;
+      if (typeof msg.to === "string") {
+        try {
+          const piece = chess.get(msg.to as Square);
+          if (piece?.type === "q") {
+            fallenQueen = piece.color === "w" ? wFaction : bFaction;
+          }
+        } catch {
+          /* */
+        }
+      }
       try {
         chess.load(msg.fen);
       } catch {
@@ -957,15 +979,16 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
       setEnding(end);
       setPhase(end ? "over" : "idle");
       setHandoff("idle");
-      if (msg.from && msg.to) setLastMove({ from: msg.from as Square, to: msg.to as Square });
+      if (msg.from && msg.to) setLastMove({ from: msg.from as Square, to: msg.to as Square, captured: Boolean(fallenQueen) });
       if (msg.clocks) setClocks(msg.clocks);
       applyTheme(prefs.setId, msg.boardId ?? table.board, msg.wFaction, msg.bFaction);
       ackHave(remotePly, true);
       window.setTimeout(() => persistGameRef.current({ forceHost: Boolean(host) }), 0);
+      if (fallenQueen?.queenFall && !end) setQueenFall(fallenQueen);
       if (end) {
         if (prefs.sound) playMoveSound("end");
       } else if (prefs.sound) {
-        playMoveSound(chess.isCheck() ? "check" : "move");
+        playMoveSound(chess.isCheck() ? "check" : fallenQueen ? "capture" : "move");
       }
       return;
     }
@@ -1084,6 +1107,7 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
     setPending(null);
     setEnding(null);
     setFinale("reveal");
+    setQueenFall(null);
     setPhase("idle");
     setTurn(chess.turn());
     setHandoff("idle");
@@ -1466,6 +1490,22 @@ function GameTable({ mode, room, host = false, selfId, invite, aiLevel = "knight
           </div>
         </button>
       )}
+
+      {queenFall?.queenFall ? (
+        <DefeatReel
+          faction={queenFall}
+          src={queenFall.queenFall}
+          kicker="The queen falls"
+          line={queenFall.queenFallLine ?? "Fallen."}
+          onDone={() => {
+            setQueenFall(null);
+            if (pendingAi.current) {
+              pendingAi.current = false;
+              void playAi();
+            }
+          }}
+        />
+      ) : null}
 
       {settledEnd && ending?.kind === "checkmate" && finale === "reveal" ? (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-end bg-bg/30 p-4 pb-[max(1.4rem,env(safe-area-inset-bottom))]">

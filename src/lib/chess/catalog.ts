@@ -39,6 +39,9 @@ export interface Faction {
   /** Optional checkmate reel when this host is mated. Poster: same path .jpg */
   defeat?: string;
   defeatLine?: string;
+  /** Optional reel when this army's queen is captured. Poster: same path .jpg */
+  queenFall?: string;
+  queenFallLine?: string;
 }
 
 export interface PieceSet {
@@ -121,6 +124,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/sanctum/intro-solace.mp4?v=3",
     defeat: "/sets/sanctum/defeat-solace.mp4?v=1",
     defeatLine: "The ivory host is broken.",
+    queenFall: "/sets/sanctum/queen-solace.mp4?v=1",
+    queenFallLine: "The ivory queen falls.",
   },
   {
     id: "evil",

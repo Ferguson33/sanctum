@@ -24,24 +24,36 @@ interface ParadeProps {
 }
 
 /** Full-screen checkmate reel for a fallen host. */
-export function DefeatReel({ faction, onDone }: { faction: Faction; onDone: () => void }) {
-  const src = faction.defeat;
+export function DefeatReel({
+  faction,
+  onDone,
+  src,
+  kicker,
+  line,
+}: {
+  faction: Faction;
+  onDone: () => void;
+  src?: string;
+  kicker?: string;
+  line?: string;
+}) {
+  const video = src ?? faction.defeat;
   useEffect(() => {
-    if (!src) onDone();
-  }, [src, onDone]);
-  if (!src) return null;
+    if (!video) onDone();
+  }, [video, onDone]);
+  if (!video) return null;
   return (
     <div className="parade-root">
       <HostReel
-        src={src}
-        poster={src.replace(/\.mp4(\?.*)?$/, ".jpg$1")}
+        src={video}
+        poster={video.replace(/\.mp4(\?.*)?$/, ".jpg$1")}
         onEnded={onDone}
         onBroken={onDone}
       />
       <div className="parade-copy">
-        <p className="text-xs uppercase tracking-[0.28em] text-ember">Checkmate</p>
+        <p className="text-xs uppercase tracking-[0.28em] text-ember">{kicker ?? "Checkmate"}</p>
         <p className="font-display mt-1 text-5xl leading-none sm:text-6xl">{faction.name}</p>
-        <p className="mt-1 text-sm text-muted">{faction.defeatLine ?? "Fallen."}</p>
+        <p className="mt-1 text-sm text-muted">{line ?? faction.defeatLine ?? "Fallen."}</p>
       </div>
       <button type="button" className="parade-skip" onClick={onDone}>
         Continue
