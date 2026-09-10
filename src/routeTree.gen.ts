@@ -18,6 +18,7 @@ import { Route as GamesRouteImport } from './routes/games'
 import { Route as ApiRtcRouteImport } from './routes/api/rtc'
 import { Route as ApiProfileRouteImport } from './routes/api/profile'
 import { Route as ApiGamesRouteImport } from './routes/api/games'
+import { Route as ApiRoomRouteImport } from './routes/api/room'
 import { Route as RCodeRouteImport } from './routes/r.$code'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const ApiGamesRoute = ApiGamesRouteImport.update({
   path: '/api/games',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRoomRoute = ApiRoomRouteImport.update({
+  id: '/api/room',
+  path: '/api/room',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RCodeRoute = RCodeRouteImport.update({
   id: '/r/$code',
   path: '/r/$code',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/api/rtc': typeof ApiRtcRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/games': typeof ApiGamesRoute
+  '/api/room': typeof ApiRoomRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/api/rtc': typeof ApiRtcRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/games': typeof ApiGamesRoute
+  '/api/room': typeof ApiRoomRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRoutesById {
@@ -106,14 +114,15 @@ export interface FileRoutesById {
   '/api/rtc': typeof ApiRtcRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/games': typeof ApiGamesRoute
+  '/api/room': typeof ApiRoomRoute
   '/r/$code': typeof RCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/play' | '/setup' | '/profile' | '/standings' | '/games' | '/api/rtc' | '/api/profile' | '/api/games' | '/r/$code'
+  fullPaths: '/' | '/play' | '/setup' | '/profile' | '/standings' | '/games' | '/api/rtc' | '/api/profile' | '/api/games' | '/api/room' | '/r/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/play' | '/setup' | '/profile' | '/standings' | '/games' | '/api/rtc' | '/api/profile' | '/api/games' | '/r/$code'
-  id: '__root__' | '/' | '/play' | '/setup' | '/profile' | '/standings' | '/games' | '/api/rtc' | '/api/profile' | '/api/games' | '/r/$code'
+  to: '/' | '/play' | '/setup' | '/profile' | '/standings' | '/games' | '/api/rtc' | '/api/profile' | '/api/games' | '/api/room' | '/r/$code'
+  id: '__root__' | '/' | '/play' | '/setup' | '/profile' | '/standings' | '/games' | '/api/rtc' | '/api/profile' | '/api/games' | '/api/room' | '/r/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -126,6 +135,7 @@ export interface RootRouteChildren {
   ApiRtcRoute: typeof ApiRtcRoute
   ApiProfileRoute: typeof ApiProfileRoute
   ApiGamesRoute: typeof ApiGamesRoute
+  ApiRoomRoute: typeof ApiRoomRoute
   RCodeRoute: typeof RCodeRoute
 }
 
@@ -194,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGamesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/room': {
+      id: '/api/room'
+      path: '/api/room'
+      fullPath: '/api/room'
+      preLoaderRoute: typeof ApiRoomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/$code': {
       id: '/r/$code'
       path: '/r/$code'
@@ -214,6 +231,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRtcRoute: ApiRtcRoute,
   ApiProfileRoute: ApiProfileRoute,
   ApiGamesRoute: ApiGamesRoute,
+  ApiRoomRoute: ApiRoomRoute,
   RCodeRoute: RCodeRoute,
 }
 export const routeTree = rootRouteImport
