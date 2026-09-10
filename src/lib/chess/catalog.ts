@@ -232,6 +232,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/drift/intro.mp4",
     defeat: "/sets/drift/defeat.mp4?v=1",
     defeatLine: "The drift is bound.",
+    queenFall: "/sets/drift/queen-fall.mp4?v=1",
+    queenFallLine: "The star goes out.",
   },
   {
     id: "kingdom",
