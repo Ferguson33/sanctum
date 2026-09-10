@@ -247,6 +247,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/kingdom/intro.mp4?v=1",
     defeat: "/sets/kingdom/defeat.mp4?v=1",
     defeatLine: "The pride is bound.",
+    queenFall: "/sets/kingdom/queen-fall.mp4?v=1",
+    queenFallLine: "The matriarch falls.",
   },
   {
     id: "mechs",
