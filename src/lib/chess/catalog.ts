@@ -154,6 +154,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/grove/intro-elves.mp4?v=3",
     defeat: "/sets/grove/defeat-elves.mp4?v=1",
     defeatLine: "The nightgrove is bound.",
+    queenFall: "/sets/grove/queen-elves.mp4?v=1",
+    queenFallLine: "The moon is dimmed.",
   },
   {
     id: "dwarves",
