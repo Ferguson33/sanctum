@@ -204,6 +204,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/atlantis/intro.mp4",
     defeat: "/sets/atlantis/defeat.mp4?v=1",
     defeatLine: "The deep throne is broken.",
+    queenFall: "/sets/atlantis/queen-fall.mp4?v=1",
+    queenFallLine: "The tide lets go.",
   },
   {
     id: "samurai",
