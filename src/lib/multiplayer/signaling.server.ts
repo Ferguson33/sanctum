@@ -98,12 +98,19 @@ function appendLocal(room: string, from: string, payload: unknown): Envelope {
 
 async function publishRemote(room: string, from: string, payload: unknown) {
   const body = JSON.stringify({ from, payload });
-  const res = await fetch(`${NTFY}/${topic(room)}`, {
-    method: "POST",
-    headers: { "content-type": "text/plain", Title: "sanctum" },
-    body,
-  });
-  if (!res.ok) throw new Error(`mailbox publish ${res.status}`);
+  const ac = new AbortController();
+  const kill = setTimeout(() => ac.abort(), 4000);
+  try {
+    const res = await fetch(`${NTFY}/${topic(room)}`, {
+      method: "POST",
+      headers: { "content-type": "text/plain", Title: "sanctum" },
+      body,
+      signal: ac.signal,
+    });
+    if (!res.ok) throw new Error(`mailbox publish ${res.status}`);
+  } finally {
+    clearTimeout(kill);
+  }
 }
 
 type NtfyMsg = { id?: string; time?: number; event?: string; message?: string };
@@ -111,9 +118,12 @@ type NtfyMsg = { id?: string; time?: number; event?: string; message?: string };
 async function readRemote(room: string): Promise<Envelope[]> {
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
+    const ac = new AbortController();
+    const kill = setTimeout(() => ac.abort(), 4000);
     try {
       const res = await fetch(`${NTFY}/${topic(room)}/json?poll=1`, {
         headers: { accept: "application/x-ndjson, application/json" },
+        signal: ac.signal,
       });
       if (res.status === 429) {
         await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
@@ -149,7 +159,9 @@ async function readRemote(room: string): Promise<Envelope[]> {
       return out;
     } catch (err) {
       lastErr = err;
-      await new Promise((r) => setTimeout(r, 400));
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
+    } finally {
+      clearTimeout(kill);
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("mailbox poll failed");
