@@ -169,6 +169,8 @@ export const FACTIONS: Faction[] = [
     intro: "/sets/grove/intro-dwarves.mp4?v=3",
     defeat: "/sets/grove/defeat-dwarves.mp4?v=1",
     defeatLine: "The mountain hall is bound.",
+    queenFall: "/sets/grove/queen-dwarves.mp4?v=1",
+    queenFallLine: "The sapphire is lost.",
   },
   {
     id: "canon-ivory",
