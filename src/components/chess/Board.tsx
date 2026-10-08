@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type BoardTheme,
   type Faction,
@@ -290,6 +290,21 @@ function PieceView({
   selected: boolean;
   landing: boolean;
 }) {
+  const king = piece.type === "k";
+  // `landing` flips on only after the 240ms move snapshot, so it can't lift
+  // the king while `.piece-slide` is still running. Track the square change.
+  const [hop, setHop] = useState(() => ({ square: piece.square, active: false }));
+  if (king && hop.square !== piece.square) {
+    setHop({ square: piece.square, active: true });
+  }
+  useEffect(() => {
+    if (!hop.active) return;
+    const id = window.setTimeout(() => {
+      setHop((prev) => (prev.active ? { square: prev.square, active: false } : prev));
+    }, 280);
+    return () => window.clearTimeout(id);
+  }, [hop]);
+
   const fi = fileIndex(piece.square);
   const ri = rankIndex(piece.square);
   const vf = orientation === "w" ? fi : 7 - fi;
@@ -325,6 +340,10 @@ function PieceView({
           "piece-billboard absolute inset-x-0 bottom-0 z-[1] flex h-[108%] items-end justify-center",
           selected && "is-selected",
           landing && "is-landing",
+          king && "is-king is-king-idle",
+          king && faction.id === "good" && "is-king-solace",
+          king && faction.id === "evil" && "is-king-ruin",
+          king && hop.active && "is-king-hop",
         )}
       >
         <img
