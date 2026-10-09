@@ -291,11 +291,18 @@ function PieceView({
   landing: boolean;
 }) {
   const king = piece.type === "k";
+  const lion = king && faction.id === "kingdom";
+  const knight = piece.type === "n";
   // `landing` flips on only after the 240ms move snapshot, so it can't lift
-  // the king while `.piece-slide` is still running. Track the square change.
+  // the piece while `.piece-slide` is still running. Track the square change.
   const [hop, setHop] = useState(() => ({ square: piece.square, active: false }));
-  if (king && hop.square !== piece.square) {
+  if ((king || knight) && hop.square !== piece.square) {
     setHop({ square: piece.square, active: true });
+  }
+  // Grabbed one-shot is lion and knight only. Other kings keep the select lift.
+  const [grab, setGrab] = useState(() => ({ held: selected, active: false }));
+  if ((lion || knight) && selected !== grab.held) {
+    setGrab({ held: selected, active: selected });
   }
   useEffect(() => {
     if (!hop.active) return;
@@ -304,6 +311,13 @@ function PieceView({
     }, 280);
     return () => window.clearTimeout(id);
   }, [hop]);
+  useEffect(() => {
+    if (!grab.active) return;
+    const id = window.setTimeout(() => {
+      setGrab((prev) => (prev.active ? { held: prev.held, active: false } : prev));
+    }, 280);
+    return () => window.clearTimeout(id);
+  }, [grab]);
 
   const fi = fileIndex(piece.square);
   const ri = rankIndex(piece.square);
@@ -340,10 +354,14 @@ function PieceView({
           "piece-billboard absolute inset-x-0 bottom-0 z-[1] flex h-[108%] items-end justify-center",
           selected && "is-selected",
           landing && "is-landing",
-          king && "is-king is-king-idle",
+          king && !lion && "is-king is-king-idle",
           king && faction.id === "good" && "is-king-solace",
           king && faction.id === "evil" && "is-king-ruin",
-          king && hop.active && "is-king-hop",
+          king && !lion && hop.active && "is-king-hop",
+          lion && "is-lion is-lion-idle",
+          lion && (hop.active || grab.active) && "is-lion-lunge",
+          knight && "is-knight is-knight-idle",
+          knight && (hop.active || grab.active) && "is-knight-rear",
         )}
       >
         <img

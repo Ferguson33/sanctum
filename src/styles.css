@@ -349,6 +349,120 @@
   }
 }
 
+/* Lion and knight motion is on the img so it doesn't replace the billboard's tilt.
+   Idle yields while selected or playing the one-shot. Kingdom lions skip kingBreath. */
+.piece-billboard.is-lion img,
+.piece-billboard.is-knight img {
+  transform-origin: center bottom;
+}
+
+.piece-billboard.is-lion.is-lion-idle:not(.is-selected):not(.is-lion-lunge) img {
+  animation: lionSway 3.2s ease-in-out infinite;
+}
+
+.piece-billboard.is-lion.is-lion-lunge:not(.is-selected) img {
+  animation: lionLunge 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.piece-billboard.is-knight.is-knight-idle:not(.is-selected):not(.is-knight-rear) img {
+  animation: knightShift 3s ease-in-out infinite;
+}
+
+.piece-billboard.is-knight.is-knight-rear:not(.is-selected) img {
+  animation: knightRear 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.piece-billboard.is-lion.is-selected:not(.is-lion-lunge) img,
+.piece-billboard.is-knight.is-selected:not(.is-knight-rear) img {
+  animation: none;
+}
+
+.piece-billboard.is-lion.is-lion-lunge.is-selected img {
+  animation: lionLungeGrab 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.piece-billboard.is-knight.is-knight-rear.is-selected img {
+  animation: knightRearGrab 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes lionSway {
+  0%,
+  100% {
+    transform: rotateZ(-2deg);
+  }
+  38% {
+    transform: rotateZ(2.4deg);
+  }
+  70% {
+    transform: rotateZ(-0.6deg);
+  }
+}
+
+@keyframes lionLunge {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  42% {
+    transform: translateY(-12%) scale(1.07, 0.95);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+@keyframes lionLungeGrab {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  42% {
+    transform: translateY(-15%) scale(1.08, 0.96);
+  }
+  100% {
+    transform: translateY(-9%) scale(1.08);
+  }
+}
+
+@keyframes knightShift {
+  0%,
+  100% {
+    transform: rotateZ(-1.6deg);
+  }
+  50% {
+    transform: rotateZ(1.6deg);
+  }
+}
+
+@keyframes knightRear {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  42% {
+    transform: translateY(-14%) scale(0.98, 1.06);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+@keyframes knightRearGrab {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  42% {
+    transform: translateY(-16%) scale(0.98, 1.07);
+  }
+  100% {
+    transform: translateY(-9%) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piece-billboard.is-lion img,
+  .piece-billboard.is-knight img {
+    animation: none !important;
+  }
+}
+
 .sq-last-from {
   background: color-mix(in oklab, var(--color-gold) 26%, transparent) !important;
   box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--color-gold) 70%, transparent);
